@@ -1,0 +1,39 @@
+---
+# Version du kernel longterm (voir https://copr.fedorainfracloud.org/coprs/kwizart/)
+# Vérifie sur le forum Fedora Discussion quelle branche est actuellement recommandée
+# avant de lancer le playbook sur une nouvelle version de Fedora.
+kernel_longterm_version: "6.18"
+kernel_longterm_copr: "kwizart/kernel-longterm-{{ kernel_longterm_version }}"
+
+# ZFS - adapte l'URL si le numéro de release a changé
+# (vérifie sur https://openzfs.github.io/openzfs-docs/Getting%20Started/Fedora/)
+zfs_release_rpm: "https://zfsonlinux.org/fedora/zfs-release-3-1.fc{{ ansible_facts.distribution_major_version }}.noarch.rpm"
+
+# Nom du pool ZFS existant à importer
+zfs_pool_name: "monpool"
+
+# SSD applicatif (configs Podman, appdata des containers)
+ssd_device: "/dev/disk/by-id/virtio-ata-CT120BX500SSD1_1"  # ata-CT120BX500SSD1_1832E1519645
+ssd_fstype: ext4
+ssd_mountpoint: "/mnt/SSD"
+hdd_mountpoint: "/mnt/HDD"
+
+containers_users:
+  - name: svc-proxy
+    extra_groups: []
+  - name: svc-sso
+    extra_groups: []
+  - name: svc-media
+    extra_groups:
+      - video
+      - render        # transcodage Jellyfin
+  - name: svc-photos
+    extra_groups: []
+
+proxy_user: svc-proxy
+sso_user: svc-sso
+media_user: svc-media
+photos_user: svc-photos
+
+# À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy)
+public_domain: "example.tld"

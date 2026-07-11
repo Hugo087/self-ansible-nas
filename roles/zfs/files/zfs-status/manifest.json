@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "tools": {
+    "zfs-status": {
+      "label": "ZFS",
+      "path": "index.html"
+    }
+  },
+  "content-security-policy": "default-src 'self' 'unsafe-inline'"
+}

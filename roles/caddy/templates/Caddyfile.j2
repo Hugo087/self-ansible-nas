@@ -1,0 +1,14 @@
+# Seuls Jellyfin et Seerr sont exposés ici. Sonarr/Radarr/Prowlarr ne
+# doivent PAS avoir de bloc ici : ils restent accessibles uniquement en
+# direct sur leur port (LAN), jamais via Caddy.
+#
+# Remplace {{ public_domain }} (variable group_vars/all.yml) par ton
+# vrai nom de domaine.
+
+jellyfin.{{ public_domain }} {
+    reverse_proxy 127.0.0.1:8096
+}
+
+seerr.{{ public_domain }} {
+    reverse_proxy 127.0.0.1:5055
+}

@@ -1,0 +1,78 @@
+---
+- name: Installer le dépôt zfs-release
+  ansible.builtin.dnf:
+    name: "{{ zfs_release_rpm }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Installer ZFS
+  ansible.builtin.dnf:
+    name: zfs
+    state: present
+
+- name: Charger le module zfs
+  community.general.modprobe:
+    name: zfs
+    state: present
+
+- name: Activer les services ZFS au démarrage
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - zfs-import.target
+    - zfs-mount
+    - zfs.target
+    - zfs-zed
+
+- name: Vérifier si le pool est déjà importé
+  ansible.builtin.command:
+    cmd: "zpool list {{ zfs_pool_name }}"
+  register: zfs_zpool_check
+  failed_when: false
+  changed_when: false
+
+- name: Importer le pool existant
+  ansible.builtin.command:
+    cmd: "zpool import {{ zfs_pool_name }}"
+  when: zfs_zpool_check.rc != 0
+  register: zfs_zpool_import
+  changed_when: zfs_zpool_import.rc == 0
+  # Si l'import échoue ici, vérifie manuellement avec `zpool import` (sans argument)
+  # que les disques sont bien détectés et attachés à la VM/au serveur.
+
+- name: Vérifier l'état du pool
+  ansible.builtin.command:
+    cmd: "zpool status {{ zfs_pool_name }}"
+  register: zfs_zpool_status
+  changed_when: false
+
+- name: Afficher l'état du pool
+  ansible.builtin.debug:
+    var: zfs_zpool_status.stdout_lines
+
+- name: Créer le dossier de la page ZFS custom
+  ansible.builtin.file:
+    path: /usr/share/cockpit/zfs-status
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Déployer le manifest.json
+  ansible.builtin.copy:
+    src: zfs-status/manifest.json
+    dest: /usr/share/cockpit/zfs-status/manifest.json
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart cockpit
+
+- name: Déployer index.html
+  ansible.builtin.copy:
+    src: zfs-status/index.html
+    dest: /usr/share/cockpit/zfs-status/index.html
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart cockpit

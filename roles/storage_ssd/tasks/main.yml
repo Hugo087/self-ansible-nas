@@ -1,0 +1,23 @@
+---
+# Formate le SSD uniquement s'il n'a pas déjà le bon filesystem
+# (le module filesystem est idempotent : il vérifie le fstype existant
+# et ne reformate pas un disque déjà en ext4, donc pas de risque à
+# rejouer ce rôle sur un disque qui contient déjà des données).
+- name: Formater le SSD en {{ ssd_fstype }}
+  community.general.filesystem:
+    fstype: "{{ ssd_fstype }}"
+    dev: "{{ ssd_device }}"
+
+- name: Créer le point de montage
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}"
+    state: directory
+    mode: "0755"
+
+- name: Monter le SSD de façon persistante (fstab)
+  ansible.posix.mount:
+    path: "{{ ssd_mountpoint }}"
+    src: "{{ ssd_device }}"
+    fstype: "{{ ssd_fstype }}"
+    opts: defaults
+    state: mounted

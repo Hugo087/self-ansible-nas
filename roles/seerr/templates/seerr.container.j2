@@ -1,0 +1,29 @@
+[Unit]
+Description=Seerr - requetes Jellyfin (ex Overseerr/Jellyseerr)
+After=network-online.target
+
+[Container]
+ContainerName=seerr
+Image=ghcr.io/seerr-team/seerr:latest
+AutoUpdate=registry
+
+Network=media.network
+PublishPort=5055:5055
+
+Environment=TZ=Europe/Paris
+
+# Pas de PUID/PGID ici : contrairement a l'ancien Jellyseerr, cette image
+# ne les supporte plus. On fixe directement l'utilisateur du process avec
+# User=, aligne sur l'UID/GID de svc-media pour que UserNS=keep-id mappe
+# correctement les fichiers vers svc-media cote hote.
+User={{ seerr_uid }}:{{ seerr_gid }}
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/seerr/config:/app/config:Z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

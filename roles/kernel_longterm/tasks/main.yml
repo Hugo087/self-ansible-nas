@@ -1,0 +1,68 @@
+---
+# NOTE : ce rôle tourne en deux temps à cause du reboot nécessaire.
+# Relance simplement le playbook une seconde fois après le premier passage :
+# le check "already_on_longterm" saute directement à la suppression de l'ancien kernel.
+
+- name: Activer le dépôt COPR kernel-longterm
+  community.general.copr:
+    name: "{{ kernel_longterm_copr }}"
+    state: enabled
+
+- name: Installer le kernel-longterm
+  ansible.builtin.dnf:
+    name:
+      - kernel-longterm
+      - kernel-longterm-core
+      - kernel-longterm-modules
+      - kernel-longterm-modules-extra
+      - kernel-longterm-devel
+    state: present
+
+- name: Resynchroniser tous les sous-paquets kernel-longterm sur la même version
+  ansible.builtin.command:
+    cmd: dnf distro-sync -y "kernel-longterm*"
+  register: kernel_longterm_kernel_distrosync
+  changed_when: "'Nothing to do' not in kernel_longterm_kernel_distrosync.stdout"
+
+- name: Empêcher dnf d'installer de nouvelles versions du kernel Fedora standard
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^exclude='
+    line: "exclude=kernel kernel-core kernel-modules kernel-modules-extra"
+    state: present
+
+- name: Vérifier si on tourne déjà sur le kernel_longterm
+  ansible.builtin.set_fact:
+    kernel_longterm_already_on_longterm: "{{ kernel_longterm_version in ansible_facts['kernel'] }}"
+
+- name: Redémarrer sur le kernel-longterm si ce n'est pas déjà le cas
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: not kernel_longterm_already_on_longterm
+
+- name: Regénérer les facts après un éventuel reboot
+  ansible.builtin.setup:
+  when: not kernel_longterm_already_on_longterm
+
+- name: Recalculer le fact après reboot
+  ansible.builtin.set_fact:
+    kernel_longterm_already_on_longterm: "{{ kernel_longterm_version in ansible_facts['kernel'] }}"
+
+# Sécurité : on ne supprime le kernel Fedora standard QUE si on est
+# effectivement démarré sur le kernel-longterm, jamais avant.
+- name: Supprimer le kernel Fedora standard (plus utilisé)
+  ansible.builtin.command:
+    cmd: >
+      dnf --setopt=disable_excludes=* remove -y
+      kernel kernel-core kernel-modules kernel-modules-extra kernel-devel
+  register: kernel_longterm_kernel_remove
+  failed_when: >
+    kernel_longterm_kernel_remove.rc != 0 and 'no packages marked for removal' not in kernel_longterm_kernel_remove.stdout | lower
+  changed_when: "'nothing to do' not in kernel_longterm_kernel_remove.stdout | lower"
+  when: kernel_longterm_already_on_longterm
+
+- name: Régénérer la config GRUB
+  ansible.builtin.command:
+    cmd: grub2-mkconfig -o /boot/grub2/grub.cfg
+  when: kernel_longterm_already_on_longterm
+  changed_when: true

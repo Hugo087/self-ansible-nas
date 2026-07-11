@@ -1,0 +1,119 @@
+# roles/podman/tasks/main.yml
+---
+- name: Installer Podman et podman-compose
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - podman-compose
+      - podman-docker
+      - cockpit-podman
+    state: present
+
+- name: Créer le dossier racine appdata (parent commun, un sous-dossier par service)
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata"
+    state: directory
+    mode: "0755"
+
+- name: Créer le dossier racine du stockage Podman
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/podman"
+    state: directory
+    mode: "0711"
+
+- name: Autoriser les containers rootless à utiliser les périphériques DRI (GPU)
+  ansible.posix.seboolean:
+    name: container_use_dri_devices
+    state: true
+    persistent: true
+
+- name: Créer chaque utilisateur système dédié à un groupe de pods
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "/home/{{ item.name }}"
+    create_home: true
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Ajouter les groupes supplémentaires nécessaires (ex. GPU pour svc-media)
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ item.extra_groups | join(',') }}"
+    append: true
+  loop: "{{ containers_users }}"
+  when: item.extra_groups | length > 0
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Activer le lingering pour chaque utilisateur
+  ansible.builtin.command:
+    cmd: "loginctl enable-linger {{ item.name }}"
+    creates: "/var/lib/systemd/linger/{{ item.name }}"
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Créer le dossier de stockage Podman par utilisateur
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/podman/{{ item.name }}/storage"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Déclarer le contexte SELinux pour chaque dossier de stockage Podman
+  community.general.sefcontext:
+    target: "{{ ssd_mountpoint }}/podman/{{ item.name }}(/.*)?"
+    setype: container_var_lib_t
+    state: present
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Appliquer le contexte SELinux (restorecon) par utilisateur
+  ansible.builtin.command:
+    cmd: "restorecon -Rv {{ ssd_mountpoint }}/podman/{{ item.name }}"
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
+- name: Créer le dossier de config containers (~/.config/containers) par utilisateur
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.config/containers"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Récupérer l'UID de chaque utilisateur (pour runroot)
+  ansible.builtin.command:
+    cmd: "id -u {{ item.name }}"
+  register: podman_containers_users_uids
+  changed_when: false
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Configurer storage.conf par utilisateur (graphroot sur le SSD)
+  ansible.builtin.template:
+    src: storage.conf.j2
+    dest: "/home/{{ item.item.name }}/.config/containers/storage.conf"
+    owner: "{{ item.item.name }}"
+    group: "{{ item.item.name }}"
+    mode: "0600"
+  vars:
+    podman_current_user: "{{ item.item.name }}"
+    podman_current_uid: "{{ item.stdout | trim }}"
+  loop: "{{ podman_containers_users_uids.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

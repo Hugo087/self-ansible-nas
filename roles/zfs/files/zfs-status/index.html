@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="../base1/cockpit.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 1em; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 2em; }
+  th, td { padding: 6px 12px; text-align: left; border-bottom: 1px solid #ddd; }
+  th { background: #f5f5f5; }
+</style>
+</head>
+<body>
+  <h2>Pools ZFS</h2>
+  <table id="pools">
+    <thead><tr><th>Nom</th><th>Taille</th><th>Utilisé</th><th>Libre</th><th>Capacité</th><th>Santé</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Datasets</h2>
+  <table id="datasets">
+    <thead><tr><th>Nom</th><th>Utilisé</th><th>Disponible</th><th>Référencé</th><th>Point de montage</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+function fillTable(selector, text) {
+  var tbody = document.querySelector(selector + " tbody");
+  tbody.innerHTML = "";
+  text.trim().split("\n").forEach(function (line) {
+    if (!line) return;
+    var tr = document.createElement("tr");
+    line.split("\t").forEach(function (col) {
+      var td = document.createElement("td");
+      td.textContent = col;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function refresh() {
+  cockpit.spawn(["zpool", "list", "-H", "-o", "name,size,alloc,free,capacity,health"], { superuser: "try" })
+    .then(function (data) { fillTable("#pools", data); })
+    .catch(function (err) { console.error("zpool list:", err); });
+
+  cockpit.spawn(["zfs", "list", "-H", "-o", "name,used,avail,refer,mountpoint"], { superuser: "try" })
+    .then(function (data) { fillTable("#datasets", data); })
+    .catch(function (err) { console.error("zfs list:", err); });
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

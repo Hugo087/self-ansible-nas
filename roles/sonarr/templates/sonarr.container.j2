@@ -1,0 +1,27 @@
+[Unit]
+Description=Sonarr
+After=network-online.target
+
+[Container]
+ContainerName=sonarr
+Image=lscr.io/linuxserver/sonarr:latest
+AutoUpdate=registry
+
+Network=media.network
+PublishPort=8989:8989
+
+Environment=TZ=Europe/Paris
+Environment=PUID={{ sonarr_puid }}
+Environment=PGID={{ sonarr_pgid }}
+
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/sonarr/config:/config:Z
+Volume={{ hdd_mountpoint }}/media:/media:z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

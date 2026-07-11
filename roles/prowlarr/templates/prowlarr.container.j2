@@ -1,0 +1,26 @@
+[Unit]
+Description=Prowlarr
+After=network-online.target
+
+[Container]
+ContainerName=prowlarr
+Image=lscr.io/linuxserver/prowlarr:latest
+AutoUpdate=registry
+
+Network=media.network
+PublishPort=9696:9696
+
+Environment=TZ=Europe/Paris
+Environment=PUID={{ prowlarr_puid }}
+Environment=PGID={{ prowlarr_pgid }}
+
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/prowlarr/config:/config:Z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

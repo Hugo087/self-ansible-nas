@@ -1,0 +1,65 @@
+---
+# "Seerr" est le projet unifié qui a remplacé Overseerr et Jellyseerr
+# (fusion des deux codebases). Contrairement à l'ancien Jellyseerr, cette
+# image tourne rootless par défaut et n'utilise PAS PUID/PGID : il faut
+# fixer explicitement User= sur le quadlet pour faire correspondre les
+# fichiers créés à svc-media côté hôte (voir note dans le template).
+
+- name: Récupérer l'UID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -u {{ media_user }}"
+  register: seerr_media_uid
+  changed_when: false
+
+- name: Récupérer le GID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -g {{ media_user }}"
+  register: seerr_media_gid
+  changed_when: false
+
+- name: Créer le dossier appdata Seerr
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/seerr/config"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
+- name: Déployer le quadlet Seerr
+  ansible.builtin.template:
+    src: seerr.container.j2
+    dest: "/home/{{ media_user }}/.config/containers/systemd/seerr.container"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0644"
+  vars:
+    seerr_uid: "{{ seerr_media_uid.stdout | trim }}"
+    seerr_gid: "{{ seerr_media_gid.stdout | trim }}"
+
+- name: Forcer le systemd --user daemon-reload (seerr)
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seerr_media_uid.stdout | trim }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+- name: Démarrer et activer Seerr
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seerr_media_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ seerr_media_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: seerr.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Ouvrir le port Seerr dans firewalld
+  ansible.posix.firewalld:
+    port: 5055/tcp
+    permanent: true
+    immediate: true
+    state: enabled

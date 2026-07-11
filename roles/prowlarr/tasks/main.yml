@@ -1,0 +1,59 @@
+---
+- name: Récupérer l'UID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -u {{ media_user }}"
+  register: prowlarr_media_uid
+  changed_when: false
+
+- name: Récupérer le GID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -g {{ media_user }}"
+  register: prowlarr_media_gid
+  changed_when: false
+
+- name: Créer le dossier appdata Prowlarr
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/prowlarr/config"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
+- name: Déployer le quadlet Prowlarr
+  ansible.builtin.template:
+    src: prowlarr.container.j2
+    dest: "/home/{{ media_user }}/.config/containers/systemd/prowlarr.container"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0644"
+  vars:
+    prowlarr_puid: "{{ prowlarr_media_uid.stdout | trim }}"
+    prowlarr_pgid: "{{ prowlarr_media_gid.stdout | trim }}"
+
+- name: Forcer le systemd --user daemon-reload (prowlarr)
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ prowlarr_media_uid.stdout | trim }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+- name: Démarrer et activer Prowlarr
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ prowlarr_media_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ prowlarr_media_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: prowlarr.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Ouvrir le port Prowlarr dans firewalld
+  ansible.posix.firewalld:
+    port: 9696/tcp
+    permanent: true
+    immediate: true
+    state: enabled

@@ -1,0 +1,86 @@
+---
+# Caddy tourne sous svc-proxy (utilisateur dédié, déjà créé par le rôle
+# podman générique via containers_users). Reseau host uniquement pour ce
+# container : c'est le seul moyen simple/robuste d'atteindre les ports
+# publiés par Jellyfin/Seerr qui tournent sous un utilisateur différent
+# (svc-media) — les réseaux Podman rootless sont cloisonnés par utilisateur.
+
+- name: Autoriser les ports privilégiés pour les processus non-root (Caddy sur 80/443)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_unprivileged_port_start
+    value: "80"
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Récupérer l'UID de svc-proxy
+  ansible.builtin.command:
+    cmd: "id -u {{ proxy_user }}"
+  register: caddy_proxy_uid
+  changed_when: false
+
+- name: Créer les dossiers appdata Caddy
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/caddy/{{ item }}"
+    state: directory
+    owner: "{{ proxy_user }}"
+    group: "{{ proxy_user }}"
+    mode: "0755"
+  loop:
+    - data
+    - config
+
+- name: Déployer le Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ ssd_mountpoint }}/appdata/caddy/Caddyfile"
+    owner: "{{ proxy_user }}"
+    group: "{{ proxy_user }}"
+    mode: "0644"
+
+- name: Créer le dossier des quadlets pour svc-proxy
+  ansible.builtin.file:
+    path: "/home/{{ proxy_user }}/.config/containers/systemd"
+    state: directory
+    owner: "{{ proxy_user }}"
+    group: "{{ proxy_user }}"
+    mode: "0755"
+
+- name: Déployer le quadlet Caddy
+  ansible.builtin.template:
+    src: caddy.container.j2
+    dest: "/home/{{ proxy_user }}/.config/containers/systemd/caddy.container"
+    owner: "{{ proxy_user }}"
+    group: "{{ proxy_user }}"
+    mode: "0644"
+
+- name: Forcer le systemd --user daemon-reload (caddy)
+  become: true
+  become_user: "{{ proxy_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ caddy_proxy_uid.stdout | trim }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+- name: Démarrer et activer Caddy
+  become: true
+  become_user: "{{ proxy_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ caddy_proxy_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ caddy_proxy_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: caddy.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Ouvrir les ports HTTP/HTTPS dans firewalld
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "80/tcp"
+    - "443/tcp"

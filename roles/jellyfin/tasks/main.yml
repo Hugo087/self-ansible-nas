@@ -1,0 +1,62 @@
+---
+- name: Récupérer l'UID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -u {{ media_user }}"
+  register: jellyfin_media_uid
+  changed_when: false
+
+- name: Créer les dossiers appdata Jellyfin
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/jellyfin/{{ item }}"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+  loop:
+    - config
+    - cache
+
+- name: Créer le dossier des quadlets
+  ansible.builtin.file:
+    path: "/home/{{ media_user }}/.config/containers/systemd"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
+- name: Déployer le quadlet du container Jellyfin
+  ansible.builtin.template:
+    src: jellyfin.container.j2
+    dest: "/home/{{ media_user }}/.config/containers/systemd/jellyfin.container"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0644"
+  notify: Reload systemd user jellyfin
+
+- name: Forcer le systemd --user daemon-reload
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ jellyfin_media_uid.stdout | trim }}"
+
+- name: Démarrer et activer le container Jellyfin
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ jellyfin_media_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ jellyfin_media_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: jellyfin.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Ouvrir le port Jellyfin dans firewalld
+  ansible.posix.firewalld:
+    port: 8096/tcp
+    permanent: true
+    immediate: true
+    state: enabled

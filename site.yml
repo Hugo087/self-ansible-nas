@@ -1,0 +1,29 @@
+---
+- name: Setup NAS - kernel-longterm, ZFS, Podman
+  hosts: nas
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: kernel_longterm
+      tags: [kernel]
+    - role: zfs
+      tags: [zfs]
+    - role: storage_ssd
+      tags: [storage]
+    - role: podman
+      tags: [podman]
+    - role: caddy
+      tags: [caddy, proxy]
+    - role: media_common
+      tags: [media, jellyfin]
+    - role: jellyfin
+      tags: [jellyfin, media]
+    - role: sonarr
+      tags: [sonarr, media]
+    - role: radarr
+      tags: [radarr, media]
+    - role: prowlarr
+      tags: [prowlarr, media]
+    - role: seerr
+      tags: [seerr, media]

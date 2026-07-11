@@ -1,0 +1,27 @@
+[Unit]
+Description=Radarr
+After=network-online.target
+
+[Container]
+ContainerName=radarr
+Image=lscr.io/linuxserver/radarr:latest
+AutoUpdate=registry
+
+Network=media.network
+PublishPort=7878:7878
+
+Environment=TZ=Europe/Paris
+Environment=PUID={{ radarr_puid }}
+Environment=PGID={{ radarr_pgid }}
+
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/radarr/config:/config:Z
+Volume={{ hdd_mountpoint }}/media:/media:z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

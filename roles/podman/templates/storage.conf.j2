@@ -1,0 +1,7 @@
+[storage]
+driver = "overlay"
+graphroot = "{{ ssd_mountpoint }}/podman/{{ podman_current_user }}/storage"
+runroot = "/run/user/{{ podman_current_uid }}/containers"
+
+[storage.options.overlay]
+mountopt = "nodev"

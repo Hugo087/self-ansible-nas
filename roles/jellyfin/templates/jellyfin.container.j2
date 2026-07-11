@@ -1,0 +1,30 @@
+[Unit]
+Description=Jellyfin - serveur multimedia
+After=network-online.target
+
+[Container]
+ContainerName=jellyfin
+Image=docker.io/jellyfin/jellyfin:latest
+AutoUpdate=registry
+
+Network=media.network
+PublishPort=8096:8096
+PublishPort=1900:1900/udp
+PublishPort=7359:7359/udp
+
+Environment=TZ=Europe/Paris
+
+UserNS=keep-id
+GroupAdd=keep-groups
+AddDevice=/dev/dri/:/dev/dri/
+
+Volume={{ ssd_mountpoint }}/appdata/jellyfin/config:/config:Z
+Volume={{ ssd_mountpoint }}/appdata/jellyfin/cache:/cache:Z
+Volume={{ hdd_mountpoint }}/media:/media:z,ro
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

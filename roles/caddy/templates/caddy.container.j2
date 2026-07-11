@@ -1,0 +1,26 @@
+[Unit]
+Description=Caddy - reverse proxy (Jellyfin + Seerr uniquement)
+After=network-online.target
+
+[Container]
+ContainerName=caddy
+Image=docker.io/library/caddy:latest
+AutoUpdate=registry
+
+# Network=host : seul moyen simple d'atteindre les ports publiés par
+# Jellyfin/Seerr, qui tournent sous svc-media (utilisateur different,
+# donc reseau Podman rootless different).
+Network=host
+
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:Z,ro
+Volume={{ ssd_mountpoint }}/appdata/caddy/data:/data:Z
+Volume={{ ssd_mountpoint }}/appdata/caddy/config:/config:Z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
