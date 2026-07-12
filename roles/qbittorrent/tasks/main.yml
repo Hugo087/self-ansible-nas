@@ -1,0 +1,62 @@
+---
+- name: Récupérer l'UID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -u {{ media_user }}"
+  register: qbittorrent_media_uid
+  changed_when: false
+
+- name: Récupérer le GID de l'utilisateur média
+  ansible.builtin.command:
+    cmd: "id -g {{ media_user }}"
+  register: qbittorrent_media_gid
+  changed_when: false
+
+- name: Créer le dossier appdata qBittorrent
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/qbittorrent/config"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
+- name: Déployer le quadlet qBittorrent
+  ansible.builtin.template:
+    src: qbittorrent.container.j2
+    dest: "/home/{{ media_user }}/.config/containers/systemd/qbittorrent.container"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0644"
+  vars:
+    qbittorrent_puid: "{{ qbittorrent_media_uid.stdout | trim }}"
+    qbittorrent_pgid: "{{ qbittorrent_media_gid.stdout | trim }}"
+
+- name: Forcer le systemd --user daemon-reload (qbittorrent)
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ qbittorrent_media_uid.stdout | trim }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+- name: Démarrer et activer qBittorrent
+  become: true
+  become_user: "{{ media_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ qbittorrent_media_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ qbittorrent_media_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: qbittorrent.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Ouvrir le port qBittorrent dans firewalld
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 6881/tcp
+    - 6881/udp

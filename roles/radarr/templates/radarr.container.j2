@@ -17,7 +17,8 @@ Environment=PGID={{ radarr_pgid }}
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/radarr/config:/config:Z
-Volume={{ hdd_mountpoint }}/media:/media:z
+Volume={{ hdd_mountpoint }}/media/movies:/movies:z
+Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
 
 [Service]
 Restart=on-failure

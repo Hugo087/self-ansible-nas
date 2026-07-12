@@ -4,26 +4,23 @@ After=network-online.target
 
 [Container]
 ContainerName=jellyfin
-Image=docker.io/jellyfin/jellyfin:latest
+Image=lscr.io/linuxserver/jellyfin:latest
 AutoUpdate=registry
 
 Network=media.network
 PublishPort=8096:8096
-PublishPort=1900:1900/udp
-PublishPort=7359:7359/udp
 
 Environment=TZ=Europe/Paris
+Environment=PUID={{ jellyfin_uid }}
+Environment=PGID={{ jellyfin_gid }}
 
-# L'image officielle ne respecte pas PUID/PGID (ca, c'est linuxserver) et
-# tourne en root par defaut si User= n'est pas precise explicitement.
-User={{ jellyfin_uid }}:{{ jellyfin_gid }}
 UserNS=keep-id
-GroupAdd=keep-groups
+
 AddDevice=/dev/dri/:/dev/dri/
 
 Volume={{ ssd_mountpoint }}/appdata/jellyfin/config:/config:Z
-Volume={{ ssd_mountpoint }}/appdata/jellyfin/cache:/cache:Z
-Volume={{ hdd_mountpoint }}/media:/media:z,ro
+Volume={{ hdd_mountpoint }}/media/tvshows:/data/tvshows:z,ro
+Volume={{ hdd_mountpoint }}/media/movies:/data/movies:z,ro
 
 [Service]
 Restart=on-failure

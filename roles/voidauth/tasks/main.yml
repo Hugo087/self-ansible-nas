@@ -1,0 +1,107 @@
+---
+- name: Récupérer l'UID de l'utilisateur sso
+  ansible.builtin.command:
+    cmd: "id -u {{ sso_user }}"
+  register: voidauth_sso_uid
+  changed_when: false
+
+- name: Récupérer le GID de l'utilisateur sso
+  ansible.builtin.command:
+    cmd: "id -g {{ sso_user }}"
+  register: voidauth_sso_gid
+  changed_when: false
+
+- name: Créer le dossier appdata VoidAuth
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/voidauth/config"
+    state: directory
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0755"
+
+- name: Créer le dossier de config VoidAuth (~/.config/voidauth)
+  ansible.builtin.file:
+    path: "/home/{{ sso_user }}/.config/voidauth"
+    state: directory
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0700"
+
+# Contient DB_PASSWORD et STORAGE_KEY en clair sur le disque : mode 0600,
+# dossier parent en 0700, et les valeurs elles-mêmes viennent du vault
+# (group_vars/vault.yml chiffré), jamais de group_vars/all.yml en clair.
+- name: Déployer le fichier d'environnement VoidAuth
+  ansible.builtin.template:
+    src: voidauth.env.j2
+    dest: "/home/{{ sso_user }}/.config/voidauth/voidauth.env"
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0600"
+  notify: Redémarrer voidauth
+
+- name: Déployer le quadlet du réseau partagé sso
+  ansible.builtin.template:
+    src: sso.network.j2
+    dest: "/home/{{ sso_user }}/.config/containers/systemd/sso.network"
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0644"
+
+- name: Déployer le quadlet voidauth-db
+  ansible.builtin.template:
+    src: voidauth-db.container.j2
+    dest: "/home/{{ sso_user }}/.config/containers/systemd/voidauth-db.container"
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0644"
+  vars:
+    voidauth_puid: "{{ voidauth_sso_uid.stdout | trim }}"
+    voidauth_pgid: "{{ voidauth_sso_gid.stdout | trim }}"
+
+- name: Déployer le quadlet voidauth
+  ansible.builtin.template:
+    src: voidauth.container.j2
+    dest: "/home/{{ sso_user }}/.config/containers/systemd/voidauth.container"
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0644"
+  vars:
+    voidauth_puid: "{{ voidauth_sso_uid.stdout | trim }}"
+    voidauth_pgid: "{{ voidauth_sso_gid.stdout | trim }}"
+
+- name: Forcer le systemd --user daemon-reload (voidauth)
+  become: true
+  become_user: "{{ sso_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+# La base doit être démarrée avant voidauth (le quadlet voidauth a bien
+# Requires=/After=voidauth-db.service, mais on la démarre explicitement en
+# premier ici pour un ordre de tâches lisible et pour ne pas dépendre
+# uniquement de systemd pour l'ordonnancement au premier lancement).
+- name: Démarrer et activer voidauth-db
+  become: true
+  become_user: "{{ sso_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ voidauth_sso_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: voidauth-db.service
+    scope: user
+    state: started
+    enabled: true
+
+- name: Démarrer et activer voidauth
+  become: true
+  become_user: "{{ sso_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ voidauth_sso_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: voidauth.service
+    scope: user
+    state: started
+    enabled: true

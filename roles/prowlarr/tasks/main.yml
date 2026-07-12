@@ -50,10 +50,3 @@
     scope: user
     state: started
     enabled: true
-
-- name: Ouvrir le port Prowlarr dans firewalld
-  ansible.posix.firewalld:
-    port: 9696/tcp
-    permanent: true
-    immediate: true
-    state: enabled

@@ -17,7 +17,8 @@ Environment=PGID={{ sonarr_pgid }}
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/sonarr/config:/config:Z
-Volume={{ hdd_mountpoint }}/media:/media:z
+Volume={{ hdd_mountpoint }}/media/tvshows:/tv:z
+Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
 
 [Service]
 Restart=on-failure

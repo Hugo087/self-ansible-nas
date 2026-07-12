@@ -1,0 +1,18 @@
+[Unit]
+Description=Base de donnees PostgreSQL pour VoidAuth
+After=network-online.target
+
+[Container]
+Image=docker.io/postgres:18
+ContainerName=voidauth-db
+Network=sso.network
+Environment=POSTGRES_PASSWORD={{ db_password }}
+Volume=voidauth-db-vol:/var/lib/postgresql/18/docker:Z
+HealthCmd=pg_isready -U postgres -h localhost
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

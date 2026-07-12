@@ -1,0 +1,34 @@
+[Unit]
+Description=qBittorrent
+After=network-online.target
+
+[Container]
+ContainerName=qbittorrent
+Image=lscr.io/linuxserver/qbittorrent:latest
+AutoUpdate=registry
+
+Network=media.network
+# WebUI qBittorrent : port 8080 par défaut (pas 9696, qui est celui de Prowlarr).
+# WEBUI_PORT doit être défini explicitement en plus du mapping de port, sinon
+# l'image linuxserver reste sur son port interne par défaut (8080) et le
+# mapping externe ci-dessous ne matche plus (CSRF/host-header check).
+PublishPort=8080:8080
+PublishPort=6881:6881
+PublishPort=6881:6881/udp
+
+Environment=TZ=Europe/Paris
+Environment=PUID={{ qbittorrent_puid }}
+Environment=PGID={{ qbittorrent_pgid }}
+Environment=WEBUI_PORT=8080
+
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/qbittorrent/config:/config:Z
+Volume={{ hdd_mountpoint }}/media/downloads:/downloads:Z
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+---
+- name: Redémarrer voidauth
+  become: true
+  become_user: "{{ sso_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ voidauth_sso_uid.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: voidauth.service
+    scope: user
+    state: restarted

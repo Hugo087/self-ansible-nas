@@ -15,6 +15,8 @@
       tags: [podman]
     - role: caddy
       tags: [caddy, proxy]
+    - role: voidauth
+      tags: [voidauth, sso]
     - role: media_common
       tags: [media, jellyfin]
     - role: jellyfin
@@ -27,3 +29,5 @@
       tags: [prowlarr, media]
     - role: seerr
       tags: [seerr, media]
+    - role: qbittorrent
+      tags: [qbittorrent, media]

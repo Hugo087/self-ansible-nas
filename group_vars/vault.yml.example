@@ -1,0 +1,22 @@
+---
+# Copie ce fichier en group_vars/vault.yml, remplis les vraies valeurs,
+# PUIS chiffre-le avant de committer quoi que ce soit :
+#
+#   cp group_vars/vault.yml.example group_vars/vault.yml
+#   $EDITOR group_vars/vault.yml
+#   ansible-vault encrypt group_vars/vault.yml
+#
+# Lance ensuite le playbook avec --ask-vault-pass (ou --vault-password-file).
+# Ne JAMAIS committer group_vars/vault.yml en clair.
+
+# Mot de passe PostgreSQL de VoidAuth (doit être identique côté DB_PASSWORD
+# du container voidauth et POSTGRES_PASSWORD du container voidauth-db :
+# c'est le cas ici puisque les deux templates lisent la même variable
+# `db_password`, elle-même définie dans group_vars/all.yml comme un alias
+# de vault_db_password).
+vault_db_password: "change-me"
+
+# Clé de chiffrement interne de VoidAuth (sessions, tokens...).
+# Génère une valeur aléatoire longue, par exemple :
+#   openssl rand -base64 32
+vault_voidauth_storage_key: "change-me-too"

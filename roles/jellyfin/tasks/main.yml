@@ -13,18 +13,7 @@
 
 - name: Créer les dossiers appdata Jellyfin
   ansible.builtin.file:
-    path: "{{ ssd_mountpoint }}/appdata/jellyfin/{{ item }}"
-    state: directory
-    owner: "{{ media_user }}"
-    group: "{{ media_user }}"
-    mode: "0755"
-  loop:
-    - config
-    - cache
-
-- name: Créer le dossier des quadlets
-  ansible.builtin.file:
-    path: "/home/{{ media_user }}/.config/containers/systemd"
+    path: "{{ ssd_mountpoint }}/appdata/jellyfin/config"
     state: directory
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
@@ -40,7 +29,6 @@
   vars:
     jellyfin_uid: "{{ jellyfin_media_uid.stdout | trim }}"
     jellyfin_gid: "{{ jellyfin_media_gid.stdout | trim }}"
-  notify: Reload systemd user jellyfin
 
 - name: Forcer le systemd --user daemon-reload
   ansible.builtin.systemd:
@@ -62,10 +50,3 @@
     scope: user
     state: started
     enabled: true
-
-- name: Ouvrir le port Jellyfin dans firewalld
-  ansible.posix.firewalld:
-    port: 8096/tcp
-    permanent: true
-    immediate: true
-    state: enabled

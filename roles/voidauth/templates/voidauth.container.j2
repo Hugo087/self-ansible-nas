@@ -1,0 +1,19 @@
+[Unit]
+Description=VoidAuth SSO Container
+After=network-online.target voidauth-db.service
+Requires=voidauth-db.service
+
+[Container]
+Image=docker.io/voidauth/voidauth:latest
+ContainerName=voidauth
+Network=sso.network
+PublishPort=3000:3000
+Volume={{ ssd_mountpoint }}/appdata/voidauth/config:/app/config:Z
+EnvironmentFile=%h/.config/voidauth/voidauth.env
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

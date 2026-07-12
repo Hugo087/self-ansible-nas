@@ -1,14 +1,83 @@
-# Seuls Jellyfin et Seerr sont exposés ici. Sonarr/Radarr/Prowlarr ne
-# doivent PAS avoir de bloc ici : ils restent accessibles uniquement en
-# direct sur leur port (LAN), jamais via Caddy.
-#
 # Remplace {{ public_domain }} (variable group_vars/all.yml) par ton
 # vrai nom de domaine.
+#
+# Deux couches indépendantes sur toutes les apps (sauf sso lui-même) :
+# - lan_only (réseau) : coupe toute connexion qui ne vient pas d'une plage
+#   privée, avant même que la requête n'atteigne VoidAuth.
+# - voidauth_auth (identité) : forward_auth vers VoidAuth, même compte pour
+#   tout le monde.
+#
+# jellyfin/seerr sont pensés pour être accessibles depuis internet un jour
+# (port-forward sur le routeur) : uniquement voidauth_auth pour eux.
+# sonarr/radarr/prowlarr/qbittorrent restent des outils d'admin : les deux
+# couches, LAN et VoidAuth, pour ne jamais compter uniquement sur leur
+# propre système d'authentification interne (voir CVE-2026-30975 sur
+# Sonarr : le mode "Disabled for Local Addresses" peut être contourné si le
+# reverse proxy devant n'est pas irréprochable sur X-Forwarded-For — pense
+# à passer leur "Authentication Required" sur Enabled dans chaque app,
+# VoidAuth devient la seule porte d'entrée fiable).
+
+# --- Snippets ---
+
+(voidauth_auth) {
+    forward_auth 127.0.0.1:3000 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+}
+
+# private_ranges = 192.168.0.0/16, 172.16.0.0/12, 10.0.0.0/8, 127.0.0.1/8,
+# fd00::/8, ::1 (cf. doc Caddy). Coupe la connexion (abort, pas de réponse
+# HTTP) pour tout ce qui n'est pas dans ces plages.
+(lan_only) {
+    @denied not remote_ip private_ranges
+    abort @denied
+}
+
+# --- VoidAuth (SSO) ---
+# Doit rester accessible partout où jellyfin/seerr le sont : c'est vers ce
+# domaine que forward_auth redirige les visiteurs non authentifiés. Pas de
+# lan_only ici : sinon un visiteur externe de jellyfin serait redirigé vers
+# une page de login qu'il ne peut pas atteindre.
+
+sso.{{ public_domain }} {
+    reverse_proxy 127.0.0.1:3000
+}
+
+# --- Apps grand public, derrière VoidAuth ---
 
 jellyfin.{{ public_domain }} {
+    import voidauth_auth
     reverse_proxy 127.0.0.1:8096
 }
 
 seerr.{{ public_domain }} {
+    import voidauth_auth
     reverse_proxy 127.0.0.1:5055
+}
+
+# --- Outils d'admin : LAN + VoidAuth, les deux couches ---
+
+sonarr.{{ public_domain }} {
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:8989
+}
+
+radarr.{{ public_domain }} {
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:7878
+}
+
+prowlarr.{{ public_domain }} {
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:9696
+}
+
+qbittorrent.{{ public_domain }} {
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:8080
 }

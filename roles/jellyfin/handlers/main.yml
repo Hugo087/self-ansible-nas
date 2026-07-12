@@ -1,9 +1,0 @@
----
-- name: Reload systemd user jellyfin
-  become: true
-  become_user: "{{ media_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ jellyfin_media_uid.stdout | trim }}"
-  ansible.builtin.systemd:
-    daemon_reload: true
-    scope: user

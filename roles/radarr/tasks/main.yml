@@ -53,10 +53,3 @@
     scope: user
     state: started
     enabled: true
-
-- name: Ouvrir le port Radarr dans firewalld
-  ansible.posix.firewalld:
-    port: 7878/tcp
-    permanent: true
-    immediate: true
-    state: enabled
