@@ -21,14 +21,18 @@ hdd_mountpoint: "/mnt/HDD"
 containers_users:
   - name: svc-proxy
     extra_groups: []
+    subuid_start: 200000
   - name: svc-sso
     extra_groups: []
+    subuid_start: 300000
   - name: svc-media
     extra_groups:
       - video
       - render        # transcodage Jellyfin
+    subuid_start: 400000
   - name: svc-photos
     extra_groups: []
+    subuid_start: 500000
 
 proxy_user: svc-proxy
 sso_user: svc-sso
@@ -36,4 +40,4 @@ media_user: svc-media
 photos_user: svc-photos
 
 # À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy)
-public_domain: "example.tld"
+public_domain: "chillandplay.lan"

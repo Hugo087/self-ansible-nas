@@ -12,6 +12,10 @@ AutoUpdate=registry
 # donc reseau Podman rootless different).
 Network=host
 
+# Meme piege que Jellyfin : l'image officielle Caddy tourne en root par
+# defaut si User= n'est pas precise, ce qui casse l'ecriture dans /data et
+# /config (appartenant a svc-proxy) une fois combine a UserNS=keep-id.
+User={{ caddy_uid }}:{{ caddy_gid }}
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:Z,ro

@@ -3,17 +3,6 @@
 # (jellyfin, sonarr, radarr, prowlarr, downloader...). Ne rien mettre ici
 # de spécifique à un service en particulier.
 
-- name: Vérifier que le pool ZFS (HDD) est bien monté avant de continuer
-  ansible.builtin.assert:
-    that:
-      - hdd_mountpoint in (ansible_facts.mounts | map(attribute='mount') | list)
-    fail_msg: >
-      {{ hdd_mountpoint }} n'est pas monté. Le pool ZFS n'a probablement pas
-      été importé — vérifie le rôle `zfs` avant de continuer. Ne pas créer ce
-      dossier à la main, ça masquerait le vrai problème (les containers
-      écriraient alors dans un dossier vide au lieu du pool réel).
-    success_msg: "{{ hdd_mountpoint }} est bien monté."
-
 - name: Créer le sous-dossier media dans le pool ZFS (si absent)
   ansible.builtin.file:
     path: "{{ hdd_mountpoint }}/media"

@@ -14,6 +14,9 @@ PublishPort=7359:7359/udp
 
 Environment=TZ=Europe/Paris
 
+# L'image officielle ne respecte pas PUID/PGID (ca, c'est linuxserver) et
+# tourne en root par defaut si User= n'est pas precise explicitement.
+User={{ jellyfin_uid }}:{{ jellyfin_gid }}
 UserNS=keep-id
 GroupAdd=keep-groups
 AddDevice=/dev/dri/:/dev/dri/

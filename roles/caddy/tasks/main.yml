@@ -19,6 +19,12 @@
   register: caddy_proxy_uid
   changed_when: false
 
+- name: Récupérer le GID de svc-proxy
+  ansible.builtin.command:
+    cmd: "id -g {{ proxy_user }}"
+  register: caddy_proxy_gid
+  changed_when: false
+
 - name: Créer les dossiers appdata Caddy
   ansible.builtin.file:
     path: "{{ ssd_mountpoint }}/appdata/caddy/{{ item }}"
@@ -53,6 +59,9 @@
     owner: "{{ proxy_user }}"
     group: "{{ proxy_user }}"
     mode: "0644"
+  vars:
+    caddy_uid: "{{ caddy_proxy_uid.stdout | trim }}"
+    caddy_gid: "{{ caddy_proxy_gid.stdout | trim }}"
 
 - name: Forcer le systemd --user daemon-reload (caddy)
   become: true

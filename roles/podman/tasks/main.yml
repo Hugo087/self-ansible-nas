@@ -48,6 +48,30 @@
   loop_control:
     label: "{{ item.name }}"
 
+# Requis pour rootless Podman : contrairement aux utilisateurs normaux,
+# les comptes système (créés avec system: true / useradd --system) n'obtiennent
+# PAS de plage subuid/subgid automatiquement. Sans ça, tout pull d'image échoue
+# avec "potentially insufficient UIDs or GIDs available in user namespace".
+- name: Assigner une plage subuid dédiée à chaque utilisateur
+  ansible.builtin.lineinfile:
+    path: /etc/subuid
+    regexp: "^{{ item.name }}:"
+    line: "{{ item.name }}:{{ item.subuid_start }}:65536"
+    state: present
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Assigner une plage subgid dédiée à chaque utilisateur
+  ansible.builtin.lineinfile:
+    path: /etc/subgid
+    regexp: "^{{ item.name }}:"
+    line: "{{ item.name }}:{{ item.subuid_start }}:65536"
+    state: present
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: Activer le lingering pour chaque utilisateur
   ansible.builtin.command:
     cmd: "loginctl enable-linger {{ item.name }}"
@@ -55,6 +79,30 @@
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
+
+- name: Récupérer l'UID de chaque utilisateur (pour runroot et system migrate)
+  ansible.builtin.command:
+    cmd: "id -u {{ item.name }}"
+  register: podman_containers_users_uids
+  changed_when: false
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Applique la plage subuid/subgid ci-dessus : sans ça, un stockage rootless
+# déjà initialisé avec l'ancien mapping (ou l'absence de mapping) resterait
+# incohérent tant que le "podman unshare" pause process n'est pas relancé.
+- name: Appliquer la nouvelle configuration subuid/subgid (podman system migrate)
+  become: true
+  become_user: "{{ item.item.name }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
+  ansible.builtin.command:
+    cmd: podman system migrate
+  loop: "{{ podman_containers_users_uids.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  changed_when: true
 
 - name: Créer le dossier de stockage Podman par utilisateur
   ansible.builtin.file:
@@ -91,15 +139,6 @@
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
     mode: "0700"
-  loop: "{{ containers_users }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Récupérer l'UID de chaque utilisateur (pour runroot)
-  ansible.builtin.command:
-    cmd: "id -u {{ item.name }}"
-  register: podman_containers_users_uids
-  changed_when: false
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
