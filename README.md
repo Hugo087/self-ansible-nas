@@ -78,6 +78,4 @@ ansible-playbook -i inventory.ini site.yml --tags podman
 
 
 
-Ajouter droits SELinux
-Ajouter droits SSD
-Ajouter droits HDD
+  sudo journalctl _SYSTEMD_USER_UNIT=caddy.service -n 50 --no-pager

@@ -12,7 +12,7 @@ Network=media.network
 # WEBUI_PORT doit être défini explicitement en plus du mapping de port, sinon
 # l'image linuxserver reste sur son port interne par défaut (8080) et le
 # mapping externe ci-dessous ne matche plus (CSRF/host-header check).
-PublishPort=8080:8080
+PublishPort=127.0.0.1:8080:8080
 PublishPort=6881:6881
 PublishPort=6881:6881/udp
 
@@ -24,7 +24,7 @@ Environment=WEBUI_PORT=8080
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/qbittorrent/config:/config:Z
-Volume={{ hdd_mountpoint }}/media/downloads:/downloads:Z
+Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
 
 [Service]
 Restart=on-failure

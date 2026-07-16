@@ -19,13 +19,13 @@
     group: "{{ sso_user }}"
     mode: "0755"
 
-- name: Créer le dossier de config VoidAuth (~/.config/voidauth)
+- name: Créer le dossier des quadlets pour l'utilisateur sso
   ansible.builtin.file:
-    path: "/home/{{ sso_user }}/.config/voidauth"
+    path: "/home/{{ sso_user }}/.config/containers/systemd"
     state: directory
     owner: "{{ sso_user }}"
     group: "{{ sso_user }}"
-    mode: "0700"
+    mode: "0755"
 
 # Contient DB_PASSWORD et STORAGE_KEY en clair sur le disque : mode 0600,
 # dossier parent en 0700, et les valeurs elles-mêmes viennent du vault
@@ -33,11 +33,10 @@
 - name: Déployer le fichier d'environnement VoidAuth
   ansible.builtin.template:
     src: voidauth.env.j2
-    dest: "/home/{{ sso_user }}/.config/voidauth/voidauth.env"
+    dest: "{{ ssd_mountpoint }}/appdata/voidauth/voidauth.env"
     owner: "{{ sso_user }}"
     group: "{{ sso_user }}"
     mode: "0600"
-  notify: Redémarrer voidauth
 
 - name: Déployer le quadlet du réseau partagé sso
   ansible.builtin.template:

@@ -42,11 +42,10 @@ photos_user: svc-photos
 # À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy)
 public_domain: "chillandplay.lan"
 
-# VoidAuth (SSO)
-# Les vraies valeurs (vault_db_password, vault_voidauth_storage_key) doivent
-# être définies dans group_vars/vault.yml, chiffré avec :
-#   ansible-vault encrypt group_vars/vault.yml
-# Voir group_vars/vault.yml.example pour le format attendu.
+# --- VoidAuth (SSO) ---
 voidauth_app_url: "https://sso.{{ public_domain }}"
+voidauth_redirect_url: "https://jellyfin.{{ public_domain }}"
 db_password: "{{ vault_db_password }}"
 voidauth_storage_key: "{{ vault_voidauth_storage_key }}"
+voidauth_smtp_api_key: "{{ vault_voidauth_smtp_api_key }}"
+voidauth_from_mail: "noreply@mail.chillandplay.space"

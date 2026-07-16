@@ -9,7 +9,9 @@ ContainerName=voidauth
 Network=sso.network
 PublishPort=3000:3000
 Volume={{ ssd_mountpoint }}/appdata/voidauth/config:/app/config:Z
-EnvironmentFile=%h/.config/voidauth/voidauth.env
+EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth.env
+
+UserNS=keep-id
 
 [Service]
 Restart=always
