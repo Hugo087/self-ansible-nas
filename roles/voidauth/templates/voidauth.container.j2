@@ -7,7 +7,10 @@ Requires=voidauth-db.service
 Image=docker.io/voidauth/voidauth:latest
 ContainerName=voidauth
 Network=sso.network
-PublishPort=3000:3000
+# Comme jellyfin/sonarr/radarr/... : on ne publie que sur le loopback, Caddy
+# (Network=host) l'atteint via 127.0.0.1. Ca évite de dépendre uniquement de
+# firewalld pour garder la page de login SSO hors du LAN.
+PublishPort=127.0.0.1:3000:3000
 Volume={{ ssd_mountpoint }}/appdata/voidauth/config:/app/config:Z
 EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth.env
 

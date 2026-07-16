@@ -89,21 +89,6 @@
   loop_control:
     label: "{{ item.name }}"
 
-# Applique la plage subuid/subgid ci-dessus : sans ça, un stockage rootless
-# déjà initialisé avec l'ancien mapping (ou l'absence de mapping) resterait
-# incohérent tant que le "podman unshare" pause process n'est pas relancé.
-- name: Appliquer la nouvelle configuration subuid/subgid (podman system migrate)
-  become: true
-  become_user: "{{ item.item.name }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
-  ansible.builtin.command:
-    cmd: podman system migrate
-  loop: "{{ podman_containers_users_uids.results }}"
-  loop_control:
-    label: "{{ item.item.name }}"
-  changed_when: true
-
 - name: Créer le dossier de stockage Podman par utilisateur
   ansible.builtin.file:
     path: "{{ ssd_mountpoint }}/podman/{{ item.name }}/storage"
@@ -153,6 +138,43 @@
   vars:
     podman_current_user: "{{ item.item.name }}"
     podman_current_uid: "{{ item.stdout | trim }}"
+  loop: "{{ podman_containers_users_uids.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# Déplacé après storage.conf (contrairement à la version précédente) : la toute
+# première commande podman d'un utilisateur initialise le storage à l'emplacement
+# lu dans storage.conf. Si "system migrate" tournait avant, le storage se serait
+# initialisé au chemin par défaut (~/.local/share/containers/storage, sur le
+# disque OS) avant que le graphroot SSD ne soit pris en compte.
+# Applique aussi la plage subuid/subgid : sans ça, un stockage rootless déjà
+# initialisé avec l'ancien mapping (ou l'absence de mapping) resterait
+# incohérent tant que le "podman unshare" pause process n'est pas relancé.
+- name: Appliquer la nouvelle configuration subuid/subgid (podman system migrate)
+  become: true
+  become_user: "{{ item.item.name }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
+  ansible.builtin.command:
+    cmd: podman system migrate
+  loop: "{{ podman_containers_users_uids.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  changed_when: true
+
+# AutoUpdate=registry sur les quadlets (caddy, jellyfin, sonarr, ...) ne sert
+# à rien sans ce timer : c'est lui qui déclenche périodiquement "podman auto-update".
+- name: Activer le timer podman-auto-update pour chaque utilisateur
+  become: true
+  become_user: "{{ item.item.name }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ item.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: podman-auto-update.timer
+    scope: user
+    state: started
+    enabled: true
   loop: "{{ podman_containers_users_uids.results }}"
   loop_control:
     label: "{{ item.item.name }}"

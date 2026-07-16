@@ -18,13 +18,20 @@ Adapte `inventory.ini` avec l'IP réelle du serveur, et `group_vars/all.yml` ave
 ### Secrets (VoidAuth)
 
 ```bash
-cp group_vars/vault.yml.example group_vars/vault.yml
-$EDITOR group_vars/vault.yml   # renseigne vault_db_password et vault_voidauth_storage_key
-ansible-vault encrypt group_vars/vault.yml
+cp group_vars/all/vault.yml.example group_vars/all/vault.yml
+$EDITOR group_vars/all/vault.yml   # renseigne vault_db_password et vault_voidauth_storage_key
+ansible-vault encrypt group_vars/all/vault.yml
 ```
 
+**Important :** le fichier doit être sous `group_vars/all/`, pas directement sous
+`group_vars/`. Ansible ne charge automatiquement que `group_vars/all.yml` (ou
+`group_vars/all/*.yml`) et `group_vars/nas.yml` (ou `group_vars/nas/*.yml`, vu
+le nom du groupe dans `inventory.ini`) — un fichier `group_vars/vault.yml` à
+plat ne serait jamais lu, et `vault_db_password`/`vault_voidauth_storage_key`
+resteraient indéfinies au moment de lancer le playbook.
+
 Lance ensuite le playbook avec `--ask-vault-pass` (ou `--vault-password-file`).
-Ne jamais committer `group_vars/vault.yml` en clair.
+Ne jamais committer `group_vars/all/vault.yml` en clair.
 
 ## Lancer le playbook
 

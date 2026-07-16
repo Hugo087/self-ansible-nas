@@ -7,7 +7,17 @@ Image=docker.io/postgres:18
 ContainerName=voidauth-db
 Network=sso.network
 Environment=POSTGRES_PASSWORD={{ db_password }}
-Volume=voidauth-db-vol:/var/lib/postgresql/18/docker:Z
+# Depuis Postgres 18, l'image officielle attend un montage sur le repertoire
+# PARENT /var/lib/postgresql (et non plus /var/lib/postgresql/data comme
+# avant). PGDATA vaut par defaut /var/lib/postgresql/18/docker, un
+# sous-dossier cree automatiquement DANS ce volume. Monter directement sur
+# le chemin versionne (comme avant) fonctionne pour l'instant, mais le jour
+# ou l'image passera a postgres:19, PGDATA deviendra /var/lib/postgresql/19/docker
+# : ce nouveau chemin sera vide (la vieille donnee restera orpheline dans
+# 18/docker), et Postgres redemarrera avec une base neuve sans prevenir.
+# Monter le parent permet en plus d'utiliser "pg_upgrade --link" entre
+# versions majeures (cf. docker-library/postgres#1259 et la doc de l'image).
+Volume=voidauth-db-vol:/var/lib/postgresql:Z
 HealthCmd=pg_isready -U postgres -h localhost
 
 [Service]
