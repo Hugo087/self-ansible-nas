@@ -1,0 +1,28 @@
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+banaction = firewallcmd-rich-rules
+ignoreip = 127.0.0.1/8 ::1
+
+[caddy-auth]
+enabled = true
+filter = caddy-auth
+logpath = {{ caddy_log_folder }}/sso-access.log
+maxretry = 10
+findtime = 5m
+bantime = 1h
+
+[caddy-scan]
+enabled = true
+filter = caddy-scan
+logpath = {{ caddy_log_folder }}/access.log
+maxretry = 20
+findtime = 2m
+bantime = 1h
+
+[sshd]
+enabled = true
+maxretry = 10
+findtime = 5m
+bantime = 1h

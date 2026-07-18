@@ -1,3 +1,15 @@
+# --- Options globales ---
+# Access log JSON, lu par fail2ban sur l'hôte via le
+# montage {{ ssd_mountpoint }}/appdata/caddy/logs -> /var/log/caddy.
+{
+    log {
+        output file /var/log/caddy/access.log
+        format json {
+            time_format iso8601
+        }
+    }
+}
+
 # Remplace {{ public_domain }} (variable group_vars/all.yml) par ton
 # vrai nom de domaine.
 #
@@ -45,6 +57,10 @@
     abort @denied
 }
 
+(access_log) {
+    log
+}
+
 # --- VoidAuth (SSO) ---
 # Doit rester accessible partout où jellyfin/seerr le sont : c'est vers ce
 # domaine que forward_auth redirige les visiteurs non authentifiés. Pas de
@@ -53,6 +69,12 @@
 
 sso.{{ public_domain }} {
     tls internal
+    log {
+        output file /var/log/caddy/sso-access.log
+        format json {
+            time_format iso8601
+        }
+    }
     reverse_proxy 127.0.0.1:3000
 }
 
@@ -60,12 +82,14 @@ sso.{{ public_domain }} {
 
 jellyfin.{{ public_domain }} {
     tls internal
+    import access_log
     import voidauth_auth
     reverse_proxy 127.0.0.1:8096
 }
 
 seerr.{{ public_domain }} {
     tls internal
+    import access_log
     import voidauth_auth
     reverse_proxy 127.0.0.1:5055
 }
@@ -74,6 +98,7 @@ seerr.{{ public_domain }} {
 
 sonarr.{{ public_domain }} {
     tls internal
+    import access_log
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:8989
@@ -81,6 +106,7 @@ sonarr.{{ public_domain }} {
 
 radarr.{{ public_domain }} {
     tls internal
+    import access_log
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:7878
@@ -88,6 +114,7 @@ radarr.{{ public_domain }} {
 
 prowlarr.{{ public_domain }} {
     tls internal
+    import access_log
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:9696
@@ -95,6 +122,7 @@ prowlarr.{{ public_domain }} {
 
 qbittorrent.{{ public_domain }} {
     tls internal
+    import access_log
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:8080

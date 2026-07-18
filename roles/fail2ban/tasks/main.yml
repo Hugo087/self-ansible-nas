@@ -1,0 +1,40 @@
+---
+- name: Installer fail2ban
+  ansible.builtin.dnf:
+    name: fail2ban
+    state: present
+
+- name: Déployer le filtre fail2ban pour les logs JSON de Caddy
+  ansible.builtin.template:
+    src: caddy-auth.conf.j2
+    dest: /etc/fail2ban/filter.d/caddy-auth.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Déployer le filtre fail2ban pour le scan d'URL agressif (optionnel)
+  ansible.builtin.template:
+    src: caddy-scan.conf.j2
+    dest: /etc/fail2ban/filter.d/caddy-scan.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Déployer jail.local
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Restart fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted
+
+- name: S'assurer que fail2ban est démarré et activé
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true

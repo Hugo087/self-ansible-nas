@@ -49,3 +49,6 @@ db_password: "{{ vault_db_password }}"
 voidauth_storage_key: "{{ vault_voidauth_storage_key }}"
 voidauth_smtp_api_key: "{{ vault_voidauth_smtp_api_key }}"
 voidauth_from_mail: "noreply@mail.chillandplay.space"
+
+# Caddy
+caddy_log_folder: "{{ ssd_mountpoint }}/appdata/caddy/logs"

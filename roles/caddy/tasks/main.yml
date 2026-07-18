@@ -35,6 +35,7 @@
   loop:
     - data
     - config
+    - logs
 
 - name: Déployer le Caddyfile
   ansible.builtin.template:

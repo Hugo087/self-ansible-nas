@@ -21,6 +21,7 @@ UserNS=keep-id
 Volume={{ ssd_mountpoint }}/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:Z,ro
 Volume={{ ssd_mountpoint }}/appdata/caddy/data:/data:Z
 Volume={{ ssd_mountpoint }}/appdata/caddy/config:/config:Z
+Volume={{ caddy_log_folder }}:/var/log/caddy:Z
 
 [Service]
 Restart=on-failure
