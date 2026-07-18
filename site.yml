@@ -33,3 +33,5 @@
       tags: [seerr, media]
     - role: qbittorrent
       tags: [qbittorrent, media]
+    - role: quantum
+      tags: [quantum, docs]

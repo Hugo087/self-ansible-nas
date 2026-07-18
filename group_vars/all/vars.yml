@@ -38,6 +38,7 @@ proxy_user: svc-proxy
 sso_user: svc-sso
 media_user: svc-media
 photos_user: svc-photos
+doc_user: svc-doc
 
 # À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy)
 public_domain: "chillandplay.lan"

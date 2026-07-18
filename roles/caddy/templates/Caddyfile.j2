@@ -127,3 +127,11 @@ qbittorrent.{{ public_domain }} {
     import voidauth_auth
     reverse_proxy 127.0.0.1:8080
 }
+
+quantum.{{ public_domain }} {
+    tls internal
+    import access_log
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:8090
+}
+
