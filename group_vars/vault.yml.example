@@ -13,3 +13,7 @@
 vault_db_password: ""
 vault_voidauth_storage_key: ""
 vault_voidauth_smtp_api_key: ""
+
+# --- Samba ---
+samba_accounts:
+  - { username: "hugo087", password: "" }

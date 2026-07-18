@@ -19,6 +19,8 @@
       tags: [voidauth, sso]
     - role: media_common
       tags: [media, jellyfin]
+    - role: samba
+      tags: [samba]
     - role: jellyfin
       tags: [jellyfin, media]
     - role: sonarr

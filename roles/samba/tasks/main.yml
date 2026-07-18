@@ -1,0 +1,57 @@
+# roles/samba/tasks/main.yml
+---
+- name: Install Samba packages
+  ansible.builtin.dnf:
+    name:
+      - samba
+      - samba-common-tools
+    state: present
+
+- name: Ensure SELinux boolean for home directories
+  community.general.seboolean:
+    name: samba_enable_home_dirs
+    state: true
+    persistent: true
+
+- name: Ensure SELinux boolean for exporting all directories (read-write)
+  community.general.seboolean:
+    name: samba_export_all_rw
+    state: true
+    persistent: true
+
+- name: Deploy smb.conf
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set Samba passwords for users
+  ansible.builtin.command:
+    cmd: "pdbedit -a -u {{ item.username }} -j {{ item.password }}"
+  environment:
+    SMB_CONF_PATH: /etc/samba/smb.conf
+  loop: "{{ samba_accounts }}"
+  no_log: true
+  changed_when: false
+
+- name: Ensure firewall allows SMB (if firewalld is active)
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    immediate: true
+    state: present
+  loop:
+    - 139
+    - 445
+  when: ansible_facts.services | default({}) | selectattr("name", "match", "firewalld") | list | length > 0
+
+- name: Restart and enable Samba services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: restarted
+  loop:
+    - smbd.service
+    - nmbd.service

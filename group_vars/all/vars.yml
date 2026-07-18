@@ -52,3 +52,13 @@ voidauth_from_mail: "noreply@mail.chillandplay.space"
 
 # Caddy
 caddy_log_folder: "{{ ssd_mountpoint }}/appdata/caddy/logs"
+
+# --- Samba ---
+samba_workgroup: WORKGROUP
+samba_server_string: "NAS Server"
+# Utilisateurs Samba autorisés sur [HDD]/[SSD]/[Media] (voir samba_accounts
+# dans group_vars/all/vault.yml pour leurs mots de passe). Pour le share
+# [Media], pas besoin d'ajouter ces comptes au groupe UNIX svc-media : le
+# "force group" dans smb.conf.j2 s'en charge à la connexion.
+samba_valid_users:
+  - hugo087

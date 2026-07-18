@@ -1,0 +1,49 @@
+[global]
+   workgroup = {{ samba_workgroup }}
+   server string = {{ samba_server_string }}
+   security = user
+   map to guest = bad user
+   hosts allow = 192.168., 10., 172.16., 172.17., 172.18., 172.19., 172.20., 172.21., 172.22., 172.23., 172.24., 172.25., 172.26., 172.27., 172.28., 172.29., 172.30., 172.31., 127.
+   hosts deny = 0.0.0.0/0
+
+[HDD]
+   comment = HDD Storage
+   path = {{ hdd_mountpoint }}
+   valid users = {{ samba_valid_users | join(',') }}
+   read only = no
+   create mask = 0644
+   directory mask = 0755
+   browseable = yes
+
+[SSD]
+   comment = SSD Storage
+   path = {{ ssd_mountpoint }}
+   valid users = {{ samba_valid_users | join(',') }}
+   read only = no
+   create mask = 0644
+   directory mask = 0755
+   browseable = yes
+
+[Media]
+   comment = Bibliotheque media (Sonarr/Radarr/qBittorrent)
+   path = {{ hdd_mountpoint }}/media
+   valid users = {{ samba_valid_users | join(',') }}
+   read only = no
+   # "force group" fait que smbd traite la connexion comme membre du groupe
+   # svc-media le temps de l'opération : pas besoin d'ajouter les comptes
+   # Samba au groupe UNIX svc-media pour que ça fonctionne. Combiné au bit
+   # setgid posé par le rôle media_common sur tvshows/movies/downloads, tout
+   # fichier créé ici (par Samba OU par Sonarr/Radarr/qBittorrent) appartient
+   # au groupe svc-media, donc lisible ET modifiable des deux côtés.
+   force group = {{ media_user }}
+   create mask = 0664
+   directory mask = 2775
+   browseable = yes
+
+[homes]
+   comment = Home Directories
+   valid users = %S
+   read only = no
+   create mask = 0700
+   directory mask = 0700
+   browseable = no

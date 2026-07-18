@@ -51,6 +51,33 @@ ansible-playbook -i inventory.ini site.yml --tags zfs
 ansible-playbook -i inventory.ini site.yml --tags podman
 ```
 
+## Samba et droits sur la médiathèque
+
+Le rôle `samba` déploie un share `[Media]` dédié (en plus de `[HDD]`/`[SSD]`,
+qui exposent les points de montage en entier) pointant sur
+`{{ hdd_mountpoint }}/media` — le dossier partagé entre Sonarr, Radarr,
+qBittorrent et Jellyfin.
+
+Pour que les fichiers restent lisibles/modifiables des deux côtés (containers
+*arr **et** Samba), deux mécanismes se combinent :
+
+- `media_common` pose le bit setgid (`02775`) sur `tvshows/`, `movies/` et
+  `downloads/` : tout fichier créé dedans hérite du groupe `svc-media`,
+  peu importe qui l'a créé.
+- Le share `[Media]` force ce même groupe côté Samba avec `force group =
+  svc-media` — inutile donc d'ajouter les comptes de `samba_valid_users` au
+  groupe UNIX `svc-media` pour que ça marche.
+
+C'est aussi pour ça que `samba` tourne après `podman` (qui crée l'utilisateur
+`svc-media`) et après `media_common` (qui crée les dossiers) dans `site.yml` —
+inverser l'ordre n'empêcherait pas `smbd` de démarrer, mais autant garder les
+dépendances explicites plutôt que de compter sur une résolution tardive côté
+Samba.
+
+Si tu ajoutes un nouvel utilisateur Samba : mets-le dans `samba_valid_users`
+(`group_vars/all/vars.yml`) et dans `samba_accounts` (`group_vars/all/vault.yml`,
+avec son mot de passe), puis relance le rôle avec `--tags samba`.
+
 ## Limites actuelles / à faire ensuite
 
 - Le rôle `zfs` importe un pool **existant** (`zpool import`), il ne crée pas de

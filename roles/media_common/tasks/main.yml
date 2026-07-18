@@ -3,13 +3,18 @@
 # (jellyfin, sonarr, radarr, prowlarr, downloader...). Ne rien mettre ici
 # de spécifique à un service en particulier.
 
+# Le bit setgid (le "2" devant 775) est ce qui permet à Samba (via le rôle
+# samba, share [Media]) et aux containers *arr de se partager ces dossiers
+# sans conflit : tout nouveau fichier/dossier créé dedans hérite automatiquement
+# du groupe svc-media, qu'il soit créé par Sonarr (PUID/PGID) ou par un
+# utilisateur Samba (force group = svc-media dans le share).
 - name: Créer le sous-dossier des séries dans le pool ZFS (si absent)
   ansible.builtin.file:
     path: "{{ hdd_mountpoint }}/media/tvshows"
     state: directory
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
-    mode: "0775"
+    mode: "02775"
 
 - name: Créer le sous-dossier films dans le pool ZFS (si absent)
   ansible.builtin.file:
@@ -17,7 +22,7 @@
     state: directory
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
-    mode: "0775"
+    mode: "02775"
 
 - name: Créer le sous-dossier de téléchargement dans le pool ZFS (si absent)
   ansible.builtin.file:
@@ -25,7 +30,7 @@
     state: directory
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
-    mode: "0775"
+    mode: "02775"
 
 - name: Récupérer l'UID de l'utilisateur média
   ansible.builtin.command:
