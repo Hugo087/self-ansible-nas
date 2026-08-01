@@ -11,6 +11,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart fail2ban
 
 - name: Déployer le filtre fail2ban pour le scan d'URL agressif (optionnel)
   ansible.builtin.template:
@@ -19,6 +20,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart fail2ban
 
 - name: Déployer jail.local
   ansible.builtin.template:
@@ -27,12 +29,10 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Restart fail2ban
 
-- name: Restart fail2ban
-  ansible.builtin.systemd:
-    name: fail2ban
-    state: restarted
-
+# Le restart effectif ne se déclenche (handler) que si un des templates
+# ci-dessus a réellement changé, plutôt qu'à chaque exécution du playbook.
 - name: S'assurer que fail2ban est démarré et activé
   ansible.builtin.systemd:
     name: fail2ban

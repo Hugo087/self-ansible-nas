@@ -2,8 +2,17 @@
 # Version du kernel longterm (voir https://copr.fedorainfracloud.org/coprs/kwizart/)
 # Vérifie sur le forum Fedora Discussion quelle branche est actuellement recommandée
 # avant de lancer le playbook sur une nouvelle version de Fedora.
+# Nombre de tentatives d'authentification SSH autorisées avant fermeture
+# de connexion (voir roles/ssh_hardening).
+ssh_hardening_max_auth_tries: 3
+
 kernel_longterm_version: "6.18"
 kernel_longterm_copr: "kwizart/kernel-longterm-{{ kernel_longterm_version }}"
+# Liste passée telle quelle à exclude= dans /etc/dnf/dnf.conf. À adapter
+# si dnf.conf avait déjà une ligne exclude= pour d'autres paquets avant ce
+# playbook (le rôle t'avertit dans ce cas plutôt que d'écraser en silence) :
+# fusionne alors tes anciennes exclusions dans cette liste.
+kernel_longterm_dnf_exclude: "kernel kernel-core kernel-modules kernel-modules-extra"
 
 # ZFS - adapte l'URL si le numéro de release a changé
 # (vérifie sur https://openzfs.github.io/openzfs-docs/Getting%20Started/Fedora/)
@@ -11,6 +20,12 @@ zfs_release_rpm: "https://zfsonlinux.org/fedora/zfs-release-3-1.fc{{ ansible_fac
 
 # Nom du pool ZFS existant à importer
 zfs_pool_name: "monpool"
+
+# Adresse mail pour les alertes ZED (dégradation de pool, disque HS...) et le
+# scrub mensuel automatique. Laisse vide pour désactiver l'envoi de mail (le
+# scrub tourne quand même, seule la notification est concernée) : suppose un
+# MTA local déjà configuré (postfix/msmtp) pour que le mail parte réellement.
+zfs_zed_email: ""
 
 # SSD applicatif (configs Podman, appdata des containers)
 ssd_device: "/dev/disk/by-id/virtio-ata-CT120BX500SSD1_1"  # ata-CT120BX500SSD1_1832E1519645
@@ -33,15 +48,85 @@ containers_users:
   - name: svc-photos
     extra_groups: []
     subuid_start: 500000
+    # Utilisé par le rôle immich (voir plus bas).
+  - name: svc-monitor
+    extra_groups: []
+    subuid_start: 600000
+    # Utilisé par le rôle beszel (hub de monitoring, voir plus bas).
+  - name: svc-pds
+    extra_groups: []
+    subuid_start: 700000
+    # Utilisé par le rôle pds (Bluesky Personal Data Server, voir plus bas).
 
 proxy_user: svc-proxy
 sso_user: svc-sso
 media_user: svc-media
 photos_user: svc-photos
-doc_user: svc-doc
+monitor_user: svc-monitor
+pds_user: svc-pds
 
-# À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy)
-public_domain: "chillandplay.lan"
+# --- Beszel (monitoring, voir roles/beszel) ---
+#
+# Un agent Beszel ne parle qu'à un seul socket Podman à la fois : avec
+# plusieurs utilisateurs rootless cloisonnés (containers_users ci-dessus),
+# ça veut dire un agent PAR utilisateur plutôt qu'un agent unique qui
+# verrait tout. Voir roles/beszel/tasks/main.yml pour le détail.
+beszel_hub_port: 8090
+
+# Clé PUBLIQUE ed25519 du hub (pas un secret : générée automatiquement par
+# le hub à son tout premier démarrage, affichée dans Settings > Tokens de
+# son interface web). Vide tant que le bootstrap manuel décrit dans le
+# README n'a pas été fait : les agents resteront déconnectés jusque-là,
+# ce qui est normal pour un premier déploiement.
+beszel_hub_key: ""
+
+# Un port distinct par agent : ils tournent tous en Network=host (comme
+# Caddy, pour atteindre 127.0.0.1:{{ beszel_hub_port }} publié sous un
+# AUTRE utilisateur), donc il faut éviter qu'ils ne se marchent dessus sur
+# ce même port. Seulement utile au mode de secours SSH de Beszel (le mode
+# normal, WebSocket sortant, ne s'en sert pas mais Beszel le démarre quand
+# même par défaut) : cf. roles/beszel/templates/beszel-agent.container.j2.
+beszel_agent_listen_ports:
+  svc-proxy: 45881
+  svc-sso: 45882
+  svc-media: 45883
+  svc-photos: 45884
+  svc-monitor: 45885
+  svc-pds: 45886
+
+# --- WireGuard (wg-easy, voir roles/wireguard) ---
+# Seul composant de tout ce projet qui tourne réellement en root : wg-easy
+# doit créer l'interface wg0 directement dans le netns de l'hôte, ce qu'un
+# des utilisateurs rootless de containers_users ne peut structurellement
+# pas faire (voir le commentaire en tête de roles/wireguard/tasks/main.yml).
+wg_easy_port: 51820
+# Port de l'UI web - jamais ouvert dans firewalld (voir
+# roles/wireguard/tasks/main.yml), joignable uniquement via
+# vpn.{{ public_domain }} (Caddy, lan_only + voidauth_auth).
+wg_easy_ui_port: 51821
+# À remplacer par ton IP publique fixe ou ton nom de domaine dynamique
+# (DuckDNS, Cloudflare DDNS...) si ta box change d'IP - c'est l'adresse que
+# les clients WireGuard doivent contacter depuis internet. Pense à rediriger
+# {{ wg_easy_port }}/udp (uniquement ce port, jamais {{ wg_easy_ui_port }})
+# vers ce NAS sur ton routeur - pas automatisable depuis ce playbook.
+wg_easy_host: "vpn.example.com"
+# Résolveur poussé aux clients une fois connectés au tunnel. Idéalement un
+# DNS qui résout aussi {{ public_domain }} (Pi-hole/AdGuard local, si tu en
+# as un) pour que sonarr.{{ public_domain }} etc. fonctionnent depuis le
+# VPN sans jongler avec /etc/hosts sur chaque appareil. Un résolveur public
+# (1.1.1.1) fonctionne aussi, mais il faudra alors gérer cette résolution
+# autrement (hosts file par client) pour atteindre les *.{{ public_domain }}.
+wg_easy_dns: "1.1.1.1"
+
+# À remplacer par ton vrai nom de domaine (Caddyfile de svc-proxy).
+# .internal plutôt que .lan : .internal est le TLD réservé par
+# IANA/IETF (RFC 9476) spécifiquement pour ce genre d'usage réseau privé -
+# .lan est une convention répandue mais non réservée officiellement,
+# avec un (faible) risque théorique de collision si ce TLD était un jour
+# délégué publiquement. Change juste ce nom si tu préfères un autre
+# domaine, le reste du projet ne fait jamais référence à ".lan" ou
+# ".internal" en dur, tout passe par cette variable.
+public_domain: "chillandplay.internal"
 
 # --- VoidAuth (SSO) ---
 voidauth_app_url: "https://sso.{{ public_domain }}"
@@ -51,15 +136,91 @@ voidauth_storage_key: "{{ vault_voidauth_storage_key }}"
 voidauth_smtp_api_key: "{{ vault_voidauth_smtp_api_key }}"
 voidauth_from_mail: "noreply@mail.chillandplay.space"
 
+# --- Immich (photos) ---
+# Stockage sur le pool ZFS (bulk data), comme les médiathèques Jellyfin -
+# pas sur le SSD applicatif qui n'est dimensionné que pour les appdata.
+immich_upload_dir: "{{ hdd_mountpoint }}/photos/upload"
+immich_db_name: immich
+immich_db_user: immich
+immich_db_password: "{{ vault_immich_db_password }}"
+
+# --- PDS Bluesky (Personal Data Server) ---
+# Contrairement à TOUT le reste de cette stack : doit être un vrai nom de
+# domaine public, résolu par un vrai DNS public (enregistrement A/AAAA
+# pointant vers l'IP publique de ce NAS) - jamais {{ public_domain }},
+# qui est un TLD .internal non routable sur lequel Let's Encrypt ne peut
+# de toute façon jamais émettre de certificat. Le protocole AT (fédération
+# avec les autres PDS, résolution du DID via plc.directory, appli mobile
+# Bluesky) exige un vrai certificat TLS public, exactement comme
+# n'importe quel site web ouvert sur internet - pas d'équivalent au
+# "tls internal" utilisé ailleurs dans le Caddyfile.
+# À remplacer par ton vrai nom de domaine - pense aussi à rediriger les
+# ports 80/tcp et 443/tcp de ce NAS sur ton routeur (déjà ouverts côté
+# firewalld par le rôle caddy, qui sert aussi ce vhost - voir
+# roles/caddy/templates/Caddyfile.j2 et le README, section PDS).
+pds_hostname: "pds.example.com"
+# Adresse de contact transmise à Let's Encrypt pour ce domaine (expiration,
+# changements de CGU...) - pas un secret, aucun besoin du vault.
+pds_admin_email: "admin@example.com"
+# Suffixe utilisé pour les handles type <compte>.{{ pds_hostname }} (le
+# point de tête compte, voir PDS_SERVICE_HANDLE_DOMAINS dans
+# roles/pds/templates/pds.env.j2). Ça ne fonctionne que si tu ajoutes AUSSI
+# un enregistrement DNS wildcard (*.{{ pds_hostname }}) en plus du A/AAAA
+# sur {{ pds_hostname }} lui-même, ce que ce playbook ne fait pas pour toi
+# (Caddy ne sait obtenir un certificat wildcard qu'avec un module DNS-01
+# tiers, non installé ici). Pour un usage perso à un seul compte, plus
+# simple de laisser tel quel et de vérifier un domaine que tu possèdes déjà
+# via la méthode DNS TXT/well-known côté Bluesky - voir le README.
+pds_service_handle_domain: ".{{ pds_hostname }}"
+
 # Caddy
 caddy_log_folder: "{{ ssd_mountpoint }}/appdata/caddy/logs"
 
 # --- Samba ---
 samba_workgroup: WORKGROUP
 samba_server_string: "NAS Server"
+# Sous-dossier dédié à l'usage personnel, séparé de appdata/ et podman/ :
+# le partage [SSD] ne pointe QUE vers ce dossier, jamais vers ssd_mountpoint
+# en entier, pour ne jamais exposer les secrets des containers (voidauth.env,
+# certificats TLS internes de Caddy...) ni le storage Podman via le réseau.
+samba_shared_dir: "{{ ssd_mountpoint }}/shared"
 # Utilisateurs Samba autorisés sur [HDD]/[SSD]/[Media] (voir samba_accounts
 # dans group_vars/all/vault.yml pour leurs mots de passe). Pour le share
 # [Media], pas besoin d'ajouter ces comptes au groupe UNIX svc-media : le
 # "force group" dans smb.conf.j2 s'en charge à la connexion.
 samba_valid_users:
   - hugo087
+
+# --- Réseau de confiance ---
+# Source unique de vérité pour "quelles plages sont le LAN de confiance",
+# réutilisée à la fois par fail2ban (fail2ban_ignore_networks ci-dessous)
+# et par Samba (roles/samba/templates/smb.conf.j2, "hosts allow") : avant,
+# ces deux endroits dupliquaient le même plan d'adressage sous deux
+# syntaxes différentes, avec le risque classique de n'en mettre qu'un à
+# jour le jour où ça change. Notation CIDR, supportée nativement par le
+# "hosts allow" de Samba (testé avec des préfixes non multiples de 8
+# comme /12 sur les versions modernes de Samba - un vieux bug existait
+# sur Samba 2.2.x mais est corrigé depuis longtemps).
+trusted_networks:
+  - "192.168.0.0/16"
+  - "172.16.0.0/12"
+  - "10.0.0.0/8"
+
+# --- fail2ban ---
+# Plages privées à ne jamais bannir : évite qu'une personne du foyer qui se
+# trompe plusieurs fois de mot de passe sur le SSO ne bloque tout le LAN.
+fail2ban_ignore_networks: "{{ trusted_networks | join(' ') }}"
+
+# --- HTPC (Kodi / gamescope / Moonlight) ---
+# Rôle à part (roles/htpc), pas testable sur la VM de test des autres
+# rôles (pas de vrai GPU/écran dédié) : lance-le avec --tags htpc sur le
+# vrai matériel, ou --skip-tags htpc ailleurs.
+htpc_user: "htpc"
+htpc_tty: "tty1"
+rpmfusion_free_release_rpm: "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_facts.distribution_major_version }}.noarch.rpm"
+# COPR tiers non officiel : moonlight-qt n'est ni dans Fedora ni dans RPM
+# Fusion. Vérifie qu'il est toujours actif avant de lancer le rôle
+# (dnf copr enable ferdiu/moonlight puis dnf search moonlight) : les COPR
+# communautaires apparaissent/disparaissent avec le temps, contrairement à
+# kernel_longterm_copr qui est bien établi.
+moonlight_copr: "ferdiu/moonlight"

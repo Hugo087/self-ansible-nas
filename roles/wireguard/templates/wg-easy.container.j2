@@ -1,0 +1,58 @@
+[Unit]
+Description=wg-easy - WireGuard + interface web d'administration
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/wg-easy/wg-easy:15
+ContainerName=wg-easy
+AutoUpdate=registry
+
+# Exception assumée à tout le reste du projet : c'est le SEUL container qui
+# tourne réellement en root (pas de User=/UserNS=keep-id ici, contrairement
+# à Caddy/Beszel). Et le Network=host ci-dessous n'a pas la même raison que
+# pour Caddy : Caddy reste rootless, Network=host lui sert juste à atteindre
+# un port publié en loopback par un AUTRE utilisateur rootless. Ici, il
+# s'agit de faire exister l'interface wg0 directement dans le netns de
+# l'hôte - un utilisateur non-root ne peut structurellement pas le faire
+# (propriété des namespaces Linux : une capability gagnée dans le user
+# namespace d'un container rootless n'a d'effet que sur les ressources
+# possédées par CE namespace, jamais sur le netns hôte, qui appartient à
+# l'utilisateur root initial). C'est aussi ce qui permet à Caddy - qui
+# écoute déjà largement, sur toutes les interfaces - d'atteindre ce
+# container sans configuration réseau supplémentaire une fois wg0 créée.
+# Voir le README (section VPN) pour le raisonnement complet.
+Network=host
+
+AddCapability=NET_ADMIN
+AddCapability=NET_RAW
+# PAS de SYS_MODULE ici volontairement : le module wireguard est chargé une
+# bonne fois pour toutes au boot par ce rôle (voir tasks/main.yml), donc ce
+# container n'a jamais besoin de charger un module kernel lui-même - une
+# capability en moins sur le composant le plus privilégié de toute la
+# stack (SYS_MODULE équivaut presque à un accès root complet si jamais ce
+# container était compromis).
+Sysctl=net.ipv4.ip_forward=1
+Sysctl=net.ipv4.conf.all.src_valid_mark=1
+
+Environment=WG_HOST={{ wg_easy_host }}
+Environment=WG_DEFAULT_ADDRESS=10.10.0.x
+Environment=WG_DEFAULT_DNS={{ wg_easy_dns }}
+# PASSWORD_HASH (secret) : dans un fichier à part, jamais inline ici - ce
+# quadlet est déployé en 0644 sous /etc/containers/systemd/, donc lisible
+# par n'importe quel compte local de la machine si le secret y était écrit
+# en clair.
+EnvironmentFile={{ ssd_mountpoint }}/appdata/wireguard/wg-easy.env
+
+Volume={{ ssd_mountpoint }}/appdata/wireguard/data:/etc/wireguard:Z
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+# multi-user.target, pas default.target : ce quadlet est déployé sous
+# /etc/containers/systemd/ et géré par le systemd SYSTÈME (pas --user comme
+# tous les autres rôles applicatifs de ce projet) - cohérent avec le fait
+# que ce container tourne en root, pas sous un containers_users dédié.
+WantedBy=multi-user.target

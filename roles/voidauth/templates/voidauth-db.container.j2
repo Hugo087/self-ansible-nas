@@ -4,9 +4,17 @@ After=network-online.target
 
 [Container]
 Image=docker.io/postgres:18
+# Le tag est épinglé sur la version majeure (18, pas latest) : AutoUpdate ne
+# tirera donc que des correctifs mineurs republiés sous ce tag, jamais un
+# saut de version majeure (qui nécessiterait une migration manuelle). Le
+# HealthCmd ci-dessous sert de filet de sécurité pour ces mises à jour.
+AutoUpdate=registry
 ContainerName=voidauth-db
 Network=sso.network
-Environment=POSTGRES_PASSWORD={{ db_password }}
+# Le mot de passe ne passe plus par Environment= (qui finirait en clair dans
+# ce fichier .container, déployé en 0644 et donc lisible par tout compte du
+# système) : il vient d'un fichier .env dédié en 0600, comme pour voidauth.env.
+EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth-db.env
 Volume=voidauth-db-vol:/var/lib/postgresql:Z
 HealthCmd=pg_isready -U postgres -h localhost
 

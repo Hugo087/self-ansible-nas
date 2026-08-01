@@ -1,9 +1,14 @@
 ---
+- name: Importer la clé de signature OpenZFS (key2, Fedora 37+ / EL9+)
+  ansible.builtin.rpm_key:
+    key: https://raw.githubusercontent.com/zfsonlinux/zfsonlinux.github.com/master/zfs-release/RPM-GPG-KEY-openzfs-key2
+    fingerprint: "7DC7 299D CF7C 7FD9 CD87 701B A599 FD5E 9DB8 4141"
+    state: present
+
 - name: Installer le dépôt zfs-release
   ansible.builtin.dnf:
     name: "{{ zfs_release_rpm }}"
     state: present
-    disable_gpg_check: true
 
 - name: Installer ZFS
   ansible.builtin.dnf:
@@ -51,6 +56,34 @@
   ansible.builtin.debug:
     var: zfs_zpool_status.stdout_lines
 
+# Sans scrub régulier, une corruption silencieuse sur un disque ne serait
+# détectée qu'à la lecture du fichier concerné - potentiellement trop tard
+# si la seconde copie sur un autre disque a aussi divergé d'ici là. Le
+# timer zfs-scrub-monthly@<pool>.timer est fourni par le paquet zfs
+# lui-même (pas besoin de créer l'unité), il suffit de l'activer.
+- name: Activer le scrub ZFS mensuel automatique
+  ansible.builtin.systemd:
+    name: "zfs-scrub-monthly@{{ zfs_pool_name }}.timer"
+    enabled: true
+    state: started
+
+# Optionnel : zfs-zed tourne déjà (activé plus haut) mais ne notifie
+# personne tant qu'aucune adresse mail n'est configurée. Suppose qu'un MTA
+# local (postfix/msmtp) est déjà en place pour que le mail parte réellement -
+# ansible ne configure pas de MTA ici.
+- name: Configurer l'adresse mail des alertes ZED
+  ansible.builtin.lineinfile:
+    path: /etc/zfs/zed.d/zed.rc
+    regexp: '^#?ZED_EMAIL_ADDR='
+    line: 'ZED_EMAIL_ADDR="{{ zfs_zed_email }}"'
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0600"
+  when: zfs_zed_email | length > 0
+  notify: Restart zed
+
 - name: Créer le dossier de la page ZFS custom
   ansible.builtin.file:
     path: /usr/share/cockpit/zfs-status
@@ -76,3 +109,59 @@
     group: root
     mode: '0644'
   notify: Restart cockpit
+
+# --- Durcissement Cockpit ---
+# Cockpit donne un accès admin complet au système (pas juste à ZFS) :
+# jusqu'ici rien dans ce projet ne le protégeait, contrairement à Beszel
+# qui montre pourtant des infos comparables (voir TODO historique du
+# README). On le fait passer derrière les mêmes couches que le reste :
+# lan_only + voidauth_auth via Caddy (roles/caddy/templates/Caddyfile.j2,
+# vhost cockpit.{{ public_domain }}), et on l'empêche d'être joignable
+# directement en le repliant sur la loopback.
+
+- name: Créer le dossier de configuration socket de cockpit.socket
+  ansible.builtin.file:
+    path: /etc/systemd/system/cockpit.socket.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Restreindre cockpit.socket à la loopback (127.0.0.1 uniquement)
+  ansible.builtin.template:
+    src: cockpit-listen.conf.j2
+    dest: /etc/systemd/system/cockpit.socket.d/listen.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd (cockpit)
+    - Restart cockpit
+
+- name: Autoriser Cockpit à faire confiance au reverse proxy Caddy
+  ansible.builtin.template:
+    src: cockpit.conf.j2
+    dest: /etc/cockpit/cockpit.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart cockpit
+
+# Sur beaucoup d'installations Fedora Server, le service "cockpit" est
+# autorisé par défaut dans la zone firewalld par défaut (port 9090
+# joignable directement depuis le LAN). Vu que cockpit.socket n'écoute
+# plus que sur 127.0.0.1 ci-dessus, ce n'est plus strictement nécessaire,
+# mais on le retire explicitement de firewalld en défense en profondeur
+# plutôt que de compter uniquement sur le bind loopback.
+- name: Retirer le service cockpit de firewalld (accès uniquement via Caddy désormais)
+  ansible.posix.firewalld:
+    service: cockpit
+    permanent: true
+    immediate: true
+    state: disabled
+
+- name: S'assurer que cockpit.socket est activé et démarré
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    state: started
+    enabled: true

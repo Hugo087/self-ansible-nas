@@ -2,22 +2,22 @@
    workgroup = {{ samba_workgroup }}
    server string = {{ samba_server_string }}
    security = user
-   map to guest = bad user
-   hosts allow = 192.168., 10., 172.16., 172.17., 172.18., 172.19., 172.20., 172.21., 172.22., 172.23., 172.24., 172.25., 172.26., 172.27., 172.28., 172.29., 172.30., 172.31., 127.
+   # never (pas bad user) : un identifiant invalide est rejeté plutôt que
+   # retombé en session invité - aucun partage de ce fichier n'est prévu
+   # pour être accessible sans authentification.
+   map to guest = never
+   hosts allow = 127. {{ trusted_networks | join(' ') }}
    hosts deny = 0.0.0.0/0
-
-[HDD]
-   comment = HDD Storage
-   path = {{ hdd_mountpoint }}
-   valid users = {{ samba_valid_users | join(',') }}
-   read only = no
-   create mask = 0644
-   directory mask = 0755
-   browseable = yes
+   # Durcissement protocole : coupe SMB1 (obsolète, sans intérêt ici vu
+   # les clients modernes) et impose l'intégrité/chiffrement du transport.
+   server min protocol = SMB2_10
+   client min protocol = SMB2_10
+   server signing = mandatory
+   smb encrypt = required
 
 [SSD]
-   comment = SSD Storage
-   path = {{ ssd_mountpoint }}
+   comment = SSD Storage (usage personnel uniquement - pas appdata/podman)
+   path = {{ samba_shared_dir }}
    valid users = {{ samba_valid_users | join(',') }}
    read only = no
    create mask = 0644
@@ -29,12 +29,6 @@
    path = {{ hdd_mountpoint }}/media
    valid users = {{ samba_valid_users | join(',') }}
    read only = no
-   # "force group" fait que smbd traite la connexion comme membre du groupe
-   # svc-media le temps de l'opération : pas besoin d'ajouter les comptes
-   # Samba au groupe UNIX svc-media pour que ça fonctionne. Combiné au bit
-   # setgid posé par le rôle media_common sur tvshows/movies/downloads, tout
-   # fichier créé ici (par Samba OU par Sonarr/Radarr/qBittorrent) appartient
-   # au groupe svc-media, donc lisible ET modifiable des deux côtés.
    force group = {{ media_user }}
    create mask = 0664
    directory mask = 2775

@@ -1,0 +1,30 @@
+#!/bin/bash
+# Généré par Ansible (roles/caddy/templates/healthcheck.sh.j2)
+#
+# HealthCmd pour caddy.container.j2. Nécessaire pour que
+# `podman auto-update --rollback` (déclenché par le timer
+# podman-auto-update.timer, voir roles/podman) puisse détecter une image
+# cassée qui ne démarre plus et revenir automatiquement en arrière - sans
+# HealthCmd, Podman n'a aucun moyen de savoir qu'une mise à jour a cassé le
+# reverse proxy devant TOUTE la stack (Caddy est le seul point d'entrée).
+#
+# Pas de curl ni wget ici : l'image officielle Caddy ne les fournit pas
+# (voir https://github.com/caddyserver/caddy-docker/issues/420). On se
+# contente d'un test de connexion TCP sur le port HTTPS - ça ne vérifie
+# pas le contenu applicatif (pas de vraie requête HTTP), mais ça suffit à
+# détecter le cas qui nous intéresse : le process a planté / n'écoute
+# plus du tout après une mise à jour. Ce script s'appuie sur la
+# redirection spéciale /dev/tcp de bash (l'image Caddy officielle est
+# basée sur Debian et fournit bash) : /bin/sh (dash) ne la supporte pas,
+# d'où l'appel explicite à bash plutôt qu'un simple test dans le quadlet.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run caddy
+#   systemctl --user status caddy.service
+if exec 3<>/dev/tcp/127.0.0.1/443; then
+    exec 3<&-
+    exec 3>&-
+    exit 0
+else
+    exit 1
+fi

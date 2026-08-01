@@ -1,0 +1,46 @@
+[Unit]
+Description=Beszel - agent de monitoring ({{ quadlet_user }})
+After=network-online.target
+
+[Container]
+ContainerName=beszel-agent-{{ quadlet_user }}
+Image=docker.io/henrygd/beszel-agent:latest
+AutoUpdate=registry
+
+# Comme Caddy : Network=host est le seul moyen simple d'atteindre le hub
+# publié en 127.0.0.1:{{ beszel_hub_port }} sous un AUTRE utilisateur
+# (monitor_user) - les réseaux Podman rootless sont cloisonnés par
+# utilisateur, cf. le commentaire équivalent dans caddy.container.j2.
+# Conséquence assumée : chaque agent remonte les mêmes métriques
+# CPU/RAM/disque/réseau système que les autres - seule la liste de
+# containers Podman visibles ({{ quadlet_user }} uniquement) diffère
+# d'un agent à l'autre. Le port LISTEN distinct (voir
+# beszel_agent_listen_ports) évite que les agents ne se marchent dessus
+# sur ce réseau host partagé ; il ne sert qu'au mode de secours SSH de
+# Beszel (le mode normal, WebSocket sortant vers HUB_URL, ne s'en sert
+# pas, mais Beszel le démarre quand même par défaut).
+Network=host
+
+EnvironmentFile=/home/{{ quadlet_user }}/.config/beszel-agent.env
+
+# Socket Podman de CET utilisateur uniquement (activé par la tâche
+# "Activer et démarrer podman.socket" dans roles/beszel/tasks/main.yml) :
+# c'est ce qui limite la vue de l'agent à ses propres containers plutôt
+# qu'à ceux de tout le système.
+# :Z par cohérence avec le reste du projet (SELinux enforcing partout) -
+# l'exemple officiel Beszel ne le met pas, à retirer si le premier
+# lancement échoue avec une erreur SELinux (`ausearch -m avc -ts recent`)
+# plutôt qu'à se connecter normalement.
+Volume=/run/user/{{ quadlet_uid }}/podman/podman.sock:/run/user/{{ quadlet_uid }}/podman/podman.sock:ro,Z
+
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+
+HealthCmd=/agent health
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

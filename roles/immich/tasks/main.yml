@@ -1,0 +1,43 @@
+---
+# svc-photos existe déjà (containers_users, group_vars/all/vars.yml, subuid
+# 500000) mais n'était utilisé par aucun rôle avant celui-ci.
+
+- name: Créer le dossier de stockage des photos/vidéos sur le pool ZFS
+  ansible.builtin.file:
+    path: "{{ immich_upload_dir }}"
+    state: directory
+    owner: "{{ photos_user }}"
+    group: "{{ photos_user }}"
+    mode: "0750"
+
+- name: Déployer Immich (réseau, secrets, quadlets, services)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ photos_user }}"
+    quadlet_name: "immich"
+    # Pas de dossier "config" bind-monté : contrairement à jellyfin/sonarr,
+    # Immich stocke sa configuration applicative en base (Postgres), pas
+    # dans des fichiers sur disque.
+    quadlet_appdata_dirs: []
+    quadlet_env_files:
+      - src: immich-server.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/immich/immich-server.env"
+      - src: immich-db.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/immich/immich-db.env"
+    quadlet_units:
+      # Pas de clé "service" pour le réseau : cf. commentaire dans
+      # quadlet_common/tasks/deploy.yml.
+      - src: photos.network.j2
+        name: photos.network
+      - src: immich-redis.container.j2
+        name: immich-redis.container
+        service: immich-redis.service
+      - src: immich-db.container.j2
+        name: immich-db.container
+        service: immich-db.service
+      - src: immich-machine-learning.container.j2
+        name: immich-machine-learning.container
+        service: immich-machine-learning.service
+      - src: immich-server.container.j2
+        name: immich-server.container
+        service: immich-server.service

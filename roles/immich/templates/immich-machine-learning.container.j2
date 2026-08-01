@@ -1,0 +1,25 @@
+[Unit]
+Description=Immich - machine learning (recherche intelligente, visages)
+After=network-online.target
+
+[Container]
+ContainerName=immich-machine-learning
+# Le nom du conteneur compte : c'est l'hôte "immich-machine-learning" que
+# immich-server va chercher par défaut (réglable sinon dans Admin Settings
+# > Machine Learning > URL, mais inutile de le faire tant que ce nom ne
+# change pas).
+Image=ghcr.io/immich-app/immich-machine-learning:release
+AutoUpdate=registry
+Network=photos.network
+# CPU uniquement par défaut (pas de GPU dédié sur ce NAS pour l'inférence -
+# le /dev/dri de Jellyfin sert au transcodage vidéo, pas à ça). Si tu ajoutes
+# un GPU compatible plus tard, l'image a des variantes de tag (-cuda,
+# -openvino, -rocm...), voir https://docs.immich.app/features/ml-hardware-acceleration
+Volume=immich-ml-cache-vol:/cache:Z
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

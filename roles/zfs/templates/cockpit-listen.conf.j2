@@ -1,0 +1,12 @@
+# Généré par Ansible (roles/zfs/templates/cockpit-listen.conf.j2)
+#
+# Par défaut, cockpit.socket écoute sur toutes les interfaces (0.0.0.0:9090)
+# - un accès admin complet au système, directement joignable depuis le LAN
+# sans passer par VoidAuth ni fail2ban. On vide la valeur héritée
+# (ListenStream= sans valeur) puis on la redéfinit sur la loopback
+# uniquement : Cockpit ne doit plus être atteignable que via Caddy
+# (cockpit.{{ public_domain }}, voir roles/caddy), jamais directement sur
+# le réseau.
+[Socket]
+ListenStream=
+ListenStream=127.0.0.1:9090

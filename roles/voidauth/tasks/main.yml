@@ -1,106 +1,53 @@
 ---
-- name: Récupérer l'UID de l'utilisateur sso
-  ansible.builtin.command:
-    cmd: "id -u {{ sso_user }}"
-  register: voidauth_sso_uid
-  changed_when: false
-
-- name: Récupérer le GID de l'utilisateur sso
-  ansible.builtin.command:
-    cmd: "id -g {{ sso_user }}"
-  register: voidauth_sso_gid
-  changed_when: false
-
-- name: Créer le dossier appdata VoidAuth
+# Créé explicitement ici, AVANT le include quadlet_common ci-dessous : le
+# quadlet voidauth.container bind-monte healthcheck.sh (voir
+# voidauth.container.j2), donc ce fichier doit déjà exister sur le disque
+# au moment où quadlet_common démarre le service - sinon podman échoue
+# avec "statfs ...: no such file or directory" (même bug que celui
+# rencontré sur roles/caddy, corrigé pour la même raison : la dernière
+# tâche de quadlet_common/tasks/deploy.yml démarre le service, donc tout
+# ce dont le quadlet a besoin doit être déployé avant cet include, pas
+# après).
+# mode 0750 : cohérent avec le mode utilisé par quadlet_common pour ce
+# même dossier (voir quadlet_common/tasks/deploy.yml).
+- name: Créer le dossier appdata de VoidAuth
   ansible.builtin.file:
-    path: "{{ ssd_mountpoint }}/appdata/voidauth/config"
+    path: "{{ ssd_mountpoint }}/appdata/voidauth"
     state: directory
+    owner: "{{ sso_user }}"
+    group: "{{ sso_user }}"
+    mode: "0750"
+
+- name: Déployer le script de healthcheck de VoidAuth
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: "{{ ssd_mountpoint }}/appdata/voidauth/healthcheck.sh"
     owner: "{{ sso_user }}"
     group: "{{ sso_user }}"
     mode: "0755"
 
-- name: Créer le dossier des quadlets pour l'utilisateur sso
-  ansible.builtin.file:
-    path: "/home/{{ sso_user }}/.config/containers/systemd"
-    state: directory
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0755"
-
-# Contient DB_PASSWORD et STORAGE_KEY en clair sur le disque : mode 0600,
-# dossier parent en 0700, et les valeurs elles-mêmes viennent du vault
-# (group_vars/vault.yml chiffré), jamais de group_vars/all.yml en clair.
-- name: Déployer le fichier d'environnement VoidAuth
-  ansible.builtin.template:
-    src: voidauth.env.j2
-    dest: "{{ ssd_mountpoint }}/appdata/voidauth/voidauth.env"
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0600"
-
-- name: Déployer le quadlet du réseau partagé sso
-  ansible.builtin.template:
-    src: sso.network.j2
-    dest: "/home/{{ sso_user }}/.config/containers/systemd/sso.network"
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0644"
-
-- name: Déployer le quadlet voidauth-db
-  ansible.builtin.template:
-    src: voidauth-db.container.j2
-    dest: "/home/{{ sso_user }}/.config/containers/systemd/voidauth-db.container"
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0644"
+- name: Déployer VoidAuth (appdata, réseau, quadlets, services)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:
-    voidauth_puid: "{{ voidauth_sso_uid.stdout | trim }}"
-    voidauth_pgid: "{{ voidauth_sso_gid.stdout | trim }}"
-
-- name: Déployer le quadlet voidauth
-  ansible.builtin.template:
-    src: voidauth.container.j2
-    dest: "/home/{{ sso_user }}/.config/containers/systemd/voidauth.container"
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0644"
-  vars:
-    voidauth_puid: "{{ voidauth_sso_uid.stdout | trim }}"
-    voidauth_pgid: "{{ voidauth_sso_gid.stdout | trim }}"
-
-- name: Forcer le systemd --user daemon-reload (voidauth)
-  become: true
-  become_user: "{{ sso_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
-  ansible.builtin.systemd:
-    scope: user
-    daemon_reload: true
-
-# La base doit être démarrée avant voidauth (le quadlet voidauth a bien
-# Requires=/After=voidauth-db.service, mais on la démarre explicitement en
-# premier ici pour un ordre de tâches lisible et pour ne pas dépendre
-# uniquement de systemd pour l'ordonnancement au premier lancement).
-- name: Démarrer et activer voidauth-db
-  become: true
-  become_user: "{{ sso_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ voidauth_sso_uid.stdout | trim }}/bus"
-  ansible.builtin.systemd:
-    name: voidauth-db.service
-    scope: user
-    state: started
-    enabled: true
-
-- name: Démarrer et activer voidauth
-  become: true
-  become_user: "{{ sso_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ voidauth_sso_uid.stdout | trim }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ voidauth_sso_uid.stdout | trim }}/bus"
-  ansible.builtin.systemd:
-    name: voidauth.service
-    scope: user
-    state: started
-    enabled: true
+    quadlet_user: "{{ sso_user }}"
+    quadlet_name: "voidauth"
+    # Les deux fichiers d'environnement contiennent des secrets (mot de passe
+    # DB, storage key, clé API SMTP) : déployés en 0600 par quadlet_common,
+    # jamais en Environment= en dur dans un .container (qui serait en 0644 et
+    # donc lisible par tout compte du système).
+    quadlet_env_files:
+      - src: voidauth.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/voidauth/voidauth.env"
+      - src: voidauth-db.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/voidauth/voidauth-db.env"
+    quadlet_units:
+      # Pas de clé "service" pour le réseau : cf. commentaire dans
+      # quadlet_common/tasks/deploy.yml.
+      - src: sso.network.j2
+        name: sso.network
+      - src: voidauth-db.container.j2
+        name: voidauth-db.container
+        service: voidauth-db.service
+      - src: voidauth.container.j2
+        name: voidauth.container
+        service: voidauth.service

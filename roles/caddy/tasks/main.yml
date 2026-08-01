@@ -5,6 +5,14 @@
 # publiés par Jellyfin/Seerr qui tournent sous un utilisateur différent
 # (svc-media) — les réseaux Podman rootless sont cloisonnés par utilisateur.
 
+# Note sur le choix du sysctl plutôt qu'une capability :
+# AddCapability=CAP_NET_BIND_SERVICE dans le quadlet a été envisagé comme
+# alternative plus ciblée, mais ne fonctionne PAS ici : en rootless + réseau
+# host, le process qui bind réellement le port tourne dans le user
+# namespace du conteneur, et une capability gagnée dans un user namespace
+# n'a d'effet que sur les ressources possédées par CE namespace — pas sur le
+# netns hôte (voir containers/podman#20664). Le sysctl abaissé reste, à ce
+# jour, la seule méthode qui fonctionne de façon fiable pour ce cas précis.
 - name: Autoriser les ports privilégiés pour les processus non-root (Caddy sur 80/443)
   ansible.posix.sysctl:
     name: net.ipv4.ip_unprivileged_port_start
@@ -13,29 +21,23 @@
     state: present
     reload: true
 
-- name: Récupérer l'UID de svc-proxy
-  ansible.builtin.command:
-    cmd: "id -u {{ proxy_user }}"
-  register: caddy_proxy_uid
-  changed_when: false
-
-- name: Récupérer le GID de svc-proxy
-  ansible.builtin.command:
-    cmd: "id -g {{ proxy_user }}"
-  register: caddy_proxy_gid
-  changed_when: false
-
-- name: Créer les dossiers appdata Caddy
+# Créé explicitement ici, AVANT le include quadlet_common ci-dessous : le
+# quadlet caddy.container bind-monte Caddyfile et healthcheck.sh (voir
+# caddy.container.j2), donc ces deux fichiers doivent déjà exister sur le
+# disque au moment où quadlet_common démarre le service - sinon podman
+# échoue avec "statfs ...: no such file or directory" sur le premier
+# Volume= dont la source est manquante. Or quadlet_common (dernière tâche
+# de deploy.yml) démarre le service, donc tout ce dont le quadlet a besoin
+# doit être déployé avant cet include, pas après.
+# mode 0750 : cohérent avec le mode utilisé par quadlet_common pour ce
+# même dossier (voir quadlet_common/tasks/deploy.yml).
+- name: Créer le dossier appdata de Caddy
   ansible.builtin.file:
-    path: "{{ ssd_mountpoint }}/appdata/caddy/{{ item }}"
+    path: "{{ ssd_mountpoint }}/appdata/caddy"
     state: directory
     owner: "{{ proxy_user }}"
     group: "{{ proxy_user }}"
-    mode: "0755"
-  loop:
-    - data
-    - config
-    - logs
+    mode: "0750"
 
 - name: Déployer le Caddyfile
   ansible.builtin.template:
@@ -44,46 +46,29 @@
     owner: "{{ proxy_user }}"
     group: "{{ proxy_user }}"
     mode: "0644"
+  notify: Restart Caddy
 
-- name: Créer le dossier des quadlets pour svc-proxy
-  ansible.builtin.file:
-    path: "/home/{{ proxy_user }}/.config/containers/systemd"
-    state: directory
+- name: Déployer le script de healthcheck
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: "{{ ssd_mountpoint }}/appdata/caddy/healthcheck.sh"
     owner: "{{ proxy_user }}"
     group: "{{ proxy_user }}"
     mode: "0755"
 
-- name: Déployer le quadlet Caddy
-  ansible.builtin.template:
-    src: caddy.container.j2
-    dest: "/home/{{ proxy_user }}/.config/containers/systemd/caddy.container"
-    owner: "{{ proxy_user }}"
-    group: "{{ proxy_user }}"
-    mode: "0644"
+- name: Déployer Caddy (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:
-    caddy_uid: "{{ caddy_proxy_uid.stdout | trim }}"
-    caddy_gid: "{{ caddy_proxy_gid.stdout | trim }}"
-
-- name: Forcer le systemd --user daemon-reload (caddy)
-  become: true
-  become_user: "{{ proxy_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ caddy_proxy_uid.stdout | trim }}"
-  ansible.builtin.systemd:
-    scope: user
-    daemon_reload: true
-
-- name: Démarrer et activer Caddy
-  become: true
-  become_user: "{{ proxy_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ caddy_proxy_uid.stdout | trim }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ caddy_proxy_uid.stdout | trim }}/bus"
-  ansible.builtin.systemd:
-    name: caddy.service
-    scope: user
-    state: started
-    enabled: true
+    quadlet_user: "{{ proxy_user }}"
+    quadlet_name: "caddy"
+    quadlet_appdata_dirs:
+      - data
+      - config
+      - logs
+    quadlet_units:
+      - src: caddy.container.j2
+        name: caddy.container
+        service: caddy.service
 
 - name: Ouvrir les ports HTTP/HTTPS dans firewalld
   ansible.posix.firewalld:

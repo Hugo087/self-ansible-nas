@@ -1,0 +1,38 @@
+[Unit]
+Description=Immich - serveur (API, interface web)
+After=network-online.target immich-db.service immich-redis.service immich-machine-learning.service
+Requires=immich-db.service immich-redis.service
+
+[Container]
+ContainerName=immich-server
+# "release" est l'équivalent, chez Immich, du tag ":latest" utilisé partout
+# ailleurs dans ce projet (leur tag "dernière version stable").
+Image=ghcr.io/immich-app/immich-server:release
+AutoUpdate=registry
+
+Network=photos.network
+# Comme jellyfin/sonarr/... : publié uniquement sur le loopback, Caddy
+# (Network=host) l'atteint via 127.0.0.1.
+PublishPort=127.0.0.1:2283:2283
+
+EnvironmentFile={{ ssd_mountpoint }}/appdata/immich/immich-server.env
+
+# Comme jellyfin/caddy : User= explicite pour ne pas dépendre du user par
+# défaut de l'image, combiné à UserNS=keep-id pour que les photos importées
+# appartiennent bien à {{ photos_user }} côté hôte (pas à un UID décalé).
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+
+# Stockage réel des photos/vidéos : sur le pool ZFS (bulk data), comme les
+# médiathèques Jellyfin - pas sur le SSD applicatif. :Z (privé) et pas :z
+# (partagé) : contrairement à tvshows/movies, ce dossier n'est touché par
+# aucun autre conteneur.
+Volume={{ immich_upload_dir }}:/data:Z
+Volume=/etc/localtime:/etc/localtime:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

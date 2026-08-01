@@ -21,19 +21,60 @@
 - name: Resynchroniser tous les sous-paquets kernel-longterm sur la même version
   ansible.builtin.command:
     cmd: dnf distro-sync -y "kernel-longterm*"
+  environment:
+    # changed_when ci-dessous cherche une chaîne anglaise dans le stdout de
+    # dnf : sans forcer la locale, un système en LANG=fr_FR (plausible ici
+    # vu que tout le projet est documenté en français) renverrait un
+    # message localisé, faisant échouer la détection (idempotence cassée -
+    # "changed" annoncé à chaque run même sans rien à faire).
+    LC_ALL: C
+    LANG: C
   register: kernel_longterm_kernel_distrosync
   changed_when: "'Nothing to do' not in kernel_longterm_kernel_distrosync.stdout"
+
+# lineinfile sur regexp: '^exclude=' remplace TOUTE ligne exclude=
+# existante - si dnf.conf en a déjà une pour d'autres paquets (config
+# personnalisée avant ce playbook), elle serait perdue sans ce garde-fou.
+- name: Vérifier si dnf.conf a déjà une ligne exclude= personnalisée
+  ansible.builtin.command:
+    cmd: grep '^exclude=' /etc/dnf/dnf.conf
+  register: kernel_longterm_existing_exclude
+  changed_when: false
+  failed_when: false
+
+- name: Avertir si l'exclusion dnf existante ne couvre pas déjà le kernel standard
+  ansible.builtin.debug:
+    msg: >-
+      /etc/dnf/dnf.conf a déjà une ligne "{{ kernel_longterm_existing_exclude.stdout }}"
+      qui va être remplacée par ce rôle. Si elle excluait d'autres paquets que
+      kernel/kernel-core/kernel-modules/kernel-modules-extra, fusionne-les manuellement
+      dans kernel_longterm_dnf_exclude (group_vars/all/vars.yml) avant de continuer.
+  when: >
+    kernel_longterm_existing_exclude.rc == 0 and
+    'kernel-modules-extra' not in kernel_longterm_existing_exclude.stdout
 
 - name: Empêcher dnf d'installer de nouvelles versions du kernel Fedora standard
   ansible.builtin.lineinfile:
     path: /etc/dnf/dnf.conf
     regexp: '^exclude='
-    line: "exclude=kernel kernel-core kernel-modules kernel-modules-extra"
+    line: "exclude={{ kernel_longterm_dnf_exclude | default('kernel kernel-core kernel-modules kernel-modules-extra') }}"
     state: present
+
+# kernel_longterm_version (ex. "6.18") n'est qu'un identifiant de branche COPR,
+# pas forcément unique : un simple "in ansible_facts['kernel']" pourrait
+# matcher par coïncidence un kernel Fedora standard portant le même
+# major.minor. On vérifie donc directement quel paquet RPM fournit le
+# vmlinuz effectivement démarré, seule source fiable.
+- name: Déterminer quel paquet fournit le kernel actuellement démarré  # noqa command-instead-of-module
+  ansible.builtin.command:
+    cmd: "rpm -qf --qf '%{NAME}' /boot/vmlinuz-{{ ansible_facts['kernel'] }}"
+  register: kernel_longterm_running_pkg
+  changed_when: false
+  failed_when: false
 
 - name: Vérifier si on tourne déjà sur le kernel_longterm
   ansible.builtin.set_fact:
-    kernel_longterm_already_on_longterm: "{{ kernel_longterm_version in ansible_facts['kernel'] }}"
+    kernel_longterm_already_on_longterm: "{{ kernel_longterm_running_pkg.stdout == 'kernel-longterm-core' }}"
 
 - name: Redémarrer sur le kernel-longterm si ce n'est pas déjà le cas
   ansible.builtin.reboot:
@@ -44,9 +85,18 @@
   ansible.builtin.setup:
   when: not kernel_longterm_already_on_longterm
 
+- name: Déterminer quel paquet fournit le kernel démarré (après reboot)  # noqa command-instead-of-module
+  ansible.builtin.command:
+    cmd: "rpm -qf --qf '%{NAME}' /boot/vmlinuz-{{ ansible_facts['kernel'] }}"
+  register: kernel_longterm_running_pkg
+  changed_when: false
+  failed_when: false
+  when: not kernel_longterm_already_on_longterm
+
 - name: Recalculer le fact après reboot
   ansible.builtin.set_fact:
-    kernel_longterm_already_on_longterm: "{{ kernel_longterm_version in ansible_facts['kernel'] }}"
+    kernel_longterm_already_on_longterm: "{{ kernel_longterm_running_pkg.stdout == 'kernel-longterm-core' }}"
+  when: not kernel_longterm_already_on_longterm
 
 # Sécurité : on ne supprime le kernel Fedora standard QUE si on est
 # effectivement démarré sur le kernel-longterm, jamais avant.
@@ -55,6 +105,13 @@
     cmd: >
       dnf --setopt=disable_excludes=* remove -y
       kernel kernel-core kernel-modules kernel-modules-extra kernel-devel
+  environment:
+    # Même raison que pour distro-sync plus haut : failed_when ET
+    # changed_when cherchent tous les deux une chaîne anglaise dans le
+    # stdout - sans ça, un dnf localisé en français ferait échouer le
+    # playbook sur un cas pourtant normal (rien à supprimer).
+    LC_ALL: C
+    LANG: C
   register: kernel_longterm_kernel_remove
   failed_when: >
     kernel_longterm_kernel_remove.rc != 0 and 'no packages marked for removal' not in kernel_longterm_kernel_remove.stdout | lower
@@ -64,5 +121,13 @@
 - name: Régénérer la config GRUB
   ansible.builtin.command:
     cmd: grub2-mkconfig -o /boot/grub2/grub.cfg
-  when: kernel_longterm_already_on_longterm
+  # Seulement si quelque chose qui affecte réellement le menu grub a changé
+  # ce run (nouveau kernel-longterm synchronisé, ou ancien kernel Fedora
+  # supprimé) - sinon cette commande s'exécutait à chaque run alors que
+  # rien n'avait bougé, avec changed_when: true en dur qui l'annonçait
+  # comme "changed" à tort.
+  when: >
+    kernel_longterm_already_on_longterm and
+    (kernel_longterm_kernel_distrosync.changed or
+     kernel_longterm_kernel_remove.changed | default(false))
   changed_when: true

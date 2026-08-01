@@ -15,13 +15,24 @@ Network=host
 # Meme piege que Jellyfin : l'image officielle Caddy tourne en root par
 # defaut si User= n'est pas precise, ce qui casse l'ecriture dans /data et
 # /config (appartenant a svc-proxy) une fois combine a UserNS=keep-id.
-User={{ caddy_uid }}:{{ caddy_gid }}
+User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:Z,ro
 Volume={{ ssd_mountpoint }}/appdata/caddy/data:/data:Z
 Volume={{ ssd_mountpoint }}/appdata/caddy/config:/config:Z
 Volume={{ caddy_log_folder }}:/var/log/caddy:Z
+Volume={{ ssd_mountpoint }}/appdata/caddy/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
+
+# Caddy est le seul point d'entrée de toute la stack : sans HealthCmd,
+# AutoUpdate=registry ci-dessus n'a aucun filet de sécurité en cas d'image
+# cassée (voir roles/caddy/templates/healthcheck.sh.j2 pour le détail du
+# choix technique). bash plutôt que sh : nécessaire pour /dev/tcp.
+HealthCmd=bash /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=10s
 
 [Service]
 Restart=on-failure

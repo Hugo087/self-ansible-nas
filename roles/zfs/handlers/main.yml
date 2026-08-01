@@ -1,5 +1,28 @@
 ---
-- name: Restart cockpit
+- name: Reload systemd (cockpit)
+  # Nécessaire après avoir déposé/modifié le drop-in
+  # /etc/systemd/system/cockpit.socket.d/listen.conf : sans ce reload,
+  # systemd continue de servir l'ancienne définition du socket même après
+  # un restart du socket lui-même.
   ansible.builtin.systemd:
-    name: cockpit.socket
+    daemon_reload: true
+
+- name: Restart cockpit
+  # cockpit.socket ET cockpit.service : redémarrer seulement le socket ne
+  # suffit pas si cockpit.service tournait déjà (ex. une session Cockpit
+  # active au moment du déploiement) - le nouveau cockpit.conf (Origins
+  # pour le reverse-proxy Caddy) ne serait alors repris qu'au prochain
+  # démarrage naturel du service, pas immédiatement. Redémarrer un service
+  # activé par socket directement est sans risque : il redémarre tout de
+  # suite puis repasse en attente d'activation si personne n'est connecté.
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - cockpit.socket
+    - cockpit.service
+
+- name: Restart zed
+  ansible.builtin.systemd:
+    name: zfs-zed.service
     state: restarted

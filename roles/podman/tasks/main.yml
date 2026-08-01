@@ -38,6 +38,20 @@
   loop_control:
     label: "{{ item.name }}"
 
+# Défense en profondeur : les secrets (voidauth.env, storage.conf...) sous
+# ~/.config/ sont déjà déployés en 0600, mais ça ne protège pas grand-chose si
+# le home directory lui-même reste lisible par d'autres comptes du système
+# (dépend du umask/HOME_MODE par défaut, pas garanti). On le verrouille
+# explicitement plutôt que de compter dessus implicitement.
+- name: Verrouiller les home directories des utilisateurs de service
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}"
+    state: directory
+    mode: "0750"
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: Ajouter les groupes supplémentaires nécessaires (ex. GPU pour svc-media)
   ansible.builtin.user:
     name: "{{ item.name }}"
@@ -58,6 +72,7 @@
     regexp: "^{{ item.name }}:"
     line: "{{ item.name }}:{{ item.subuid_start }}:65536"
     state: present
+  register: podman_subuid_result
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
@@ -68,6 +83,7 @@
     regexp: "^{{ item.name }}:"
     line: "{{ item.name }}:{{ item.subuid_start }}:65536"
     state: present
+  register: podman_subgid_result
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
@@ -81,6 +97,13 @@
     label: "{{ item.name }}"
 
 - name: Récupérer l'UID de chaque utilisateur (pour runroot et system migrate)
+  # Note : contrairement aux rôles applicatifs (jellyfin, sonarr, ...) qui
+  # utilisent désormais `ansible.builtin.getent` pour un seul utilisateur à la
+  # fois, ce rôle a besoin de conserver les UID de PLUSIEURS utilisateurs
+  # simultanément dans une liste (`.results`) pour les boucles suivantes.
+  # `getent` écrase `ansible_facts.getent_passwd` à chaque appel plutôt que de
+  # fusionner les entrées (vérifié) : il ne convient donc pas à ce cas précis,
+  # `command` + `register` reste le bon outil ici.
   ansible.builtin.command:
     cmd: "id -u {{ item.name }}"
   register: podman_containers_users_uids
@@ -115,7 +138,8 @@
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
-  changed_when: true
+  register: podman_restorecon
+  changed_when: "'Relabeled' in podman_restorecon.stdout"
 
 - name: Créer le dossier de config containers (~/.config/containers) par utilisateur
   ansible.builtin.file:
@@ -150,6 +174,32 @@
 # Applique aussi la plage subuid/subgid : sans ça, un stockage rootless déjà
 # initialisé avec l'ancien mapping (ou l'absence de mapping) resterait
 # incohérent tant que le "podman unshare" pause process n'est pas relancé.
+# "podman system migrate" n'a pas de sortie exploitable pour détecter un
+# changement : elle est silencieuse en cas de succès, que la migration ait
+# eu du travail à faire ou non. Contrairement à grub2-mkconfig
+# (roles/kernel_longterm), pas de "Nothing to do" à chercher dans le
+# stdout. On se base donc sur le seul signal fiable dont on dispose déjà :
+# la plage subuid/subgid de l'utilisateur a-t-elle réellement changé lors
+# de CE run ? C'est d'ailleurs exactement la raison documentée plus haut
+# pour laquelle cette tâche existe.
+# Limite connue : un upgrade du paquet podman lui-même (changement de
+# format de storage) peut aussi nécessiter un "system migrate" sans que le
+# subuid/subgid n'ait bougé - dans ce cas, relance-le une fois à la main
+# ou avec --tags podman après un `dnf upgrade podman`.
+- name: Regrouper l'état "changed" du subuid par utilisateur
+  ansible.builtin.set_fact:
+    podman_subid_changed_by_user: "{{ podman_subid_changed_by_user | default({}) | combine({item.item.name: item.changed}) }}"
+  loop: "{{ podman_subuid_result.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Fusionner l'état "changed" du subgid par utilisateur
+  ansible.builtin.set_fact:
+    podman_subid_changed_by_user: "{{ podman_subid_changed_by_user | combine({item.item.name: (podman_subid_changed_by_user[item.item.name] or item.changed)}) }}"
+  loop: "{{ podman_subgid_result.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
 - name: Appliquer la nouvelle configuration subuid/subgid (podman system migrate)
   become: true
   become_user: "{{ item.item.name }}"
@@ -160,6 +210,7 @@
   loop: "{{ podman_containers_users_uids.results }}"
   loop_control:
     label: "{{ item.item.name }}"
+  when: podman_subid_changed_by_user[item.item.name]
   changed_when: true
 
 # AutoUpdate=registry sur les quadlets (caddy, jellyfin, sonarr, ...) ne sert

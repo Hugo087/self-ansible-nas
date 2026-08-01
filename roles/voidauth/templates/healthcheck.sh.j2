@@ -1,0 +1,22 @@
+#!/bin/sh
+# Généré par Ansible (roles/voidauth/templates/healthcheck.sh.j2)
+#
+# HealthCmd pour voidauth.container.j2. VoidAuth est le SSO devant
+# quasiment toutes les apps de la stack (sonarr, radarr, prowlarr,
+# qbittorrent, jellyfin, seerr, monitor, cockpit...) : une image cassée
+# après un AutoUpdate=registry bloquerait l'accès à tout le monde, pas
+# juste à VoidAuth. Défini explicitement ici plutôt que de compter sur le
+# HEALTHCHECK déjà présent dans le Dockerfile officiel de l'image (voir
+# https://github.com/voidauth/voidauth/blob/main/Dockerfile) : ça garantit
+# que le quadlet génère bien le timer systemd --user qui l'exécute
+# périodiquement, plutôt que de dépendre d'un comportement implicite côté
+# image que je n'ai pas pu vérifier pour ce cas précis (rootless + quadlet).
+#
+# La commande reprend exactement la logique de ce HEALTHCHECK officiel :
+# node (déjà présent dans l'image, pas besoin de curl/wget) interroge le
+# endpoint /healthcheck que l'appli expose elle-même.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run voidauth
+#   systemctl --user status voidauth.service
+node -e "fetch('http://localhost:3000/healthcheck').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"

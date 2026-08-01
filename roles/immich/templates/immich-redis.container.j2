@@ -1,0 +1,21 @@
+[Unit]
+Description=Valkey - file de jobs pour Immich
+After=network-online.target
+
+[Container]
+ContainerName=immich-redis
+Image=docker.io/valkey/valkey:9
+AutoUpdate=registry
+Network=photos.network
+# Purement une file de jobs/cache, pas de données à préserver entre deux
+# redémarrages : pas de volume, comme dans le docker-compose officiel
+# d'Immich (perdre son contenu au redémarrage n'est pas grave, Immich
+# retraite les jobs interrompus).
+HealthCmd=redis-cli ping || exit 1
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

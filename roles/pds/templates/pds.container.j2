@@ -1,0 +1,56 @@
+[Unit]
+Description=Bluesky PDS (Personal Data Server)
+After=network-online.target
+
+[Container]
+ContainerName=pds
+Image=ghcr.io/bluesky-social/pds:0.4
+AutoUpdate=registry
+
+Network=pds.network
+# Comme voidauth/seerr/... : publié uniquement en loopback, Caddy (qui
+# tourne en Network=host sous un autre utilisateur, svc-proxy) l'atteint
+# via 127.0.0.1. C'est bien Caddy qui expose ce service sur internet
+# (vhost {{ pds_hostname }}, vrai certificat public - voir
+# roles/caddy/templates/Caddyfile.j2), jamais ce PublishPort directement.
+#
+# Port HÔTE 3002 (pas 3000) : contrairement aux autres apps de cette
+# stack, VoidAuth publie déjà 127.0.0.1:3000 côté hôte. Un PublishPort
+# rootless bind le port sur le netns réel de la machine - un espace
+# PARTAGÉ entre tous les utilisateurs svc-*, pas cloisonné comme les
+# networks Podman entre eux. Deux conteneurs different (même sous deux
+# utilisateurs système différents) ne peuvent donc pas publier tous les
+# deux 127.0.0.1:3000 : celui démarré en second échouerait avec
+# "bind: address already in use". Le port CONTENEUR (3000, PDS_PORT dans
+# pds.env.j2) ne change pas, seul le port hôte diffère - Caddy est mis à
+# jour en conséquence (roles/caddy/templates/Caddyfile.j2, vhost
+# {{ pds_hostname }}).
+PublishPort=127.0.0.1:3002:3000
+
+# Même piège que Caddy/Seerr/VoidAuth : l'image tourne en root par défaut
+# si User= n'est pas précisé, ce qui casse l'écriture dans /pds (appartient
+# à {{ pds_user }} côté hôte) une fois combiné à UserNS=keep-id.
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+
+Volume={{ ssd_mountpoint }}/appdata/pds/data:/pds:Z
+Volume={{ ssd_mountpoint }}/appdata/pds/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
+EnvironmentFile={{ ssd_mountpoint }}/appdata/pds/pds.env
+
+# Comme Caddy/VoidAuth : HealthCmd explicite pour que
+# podman-auto-update.timer puisse détecter une image cassée et faire un
+# rollback automatique (AutoUpdate=registry ci-dessus) - ce PDS est le
+# point de passage obligé pour ce compte Bluesky, comme Caddy/VoidAuth le
+# sont pour le reste de la stack.
+HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

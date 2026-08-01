@@ -1,0 +1,15 @@
+---
+# Installation : ansible-galaxy collection install -r requirements.yml
+#
+# Versions planchers plutôt que "dernière disponible" (ce que fait
+# `ansible-galaxy collection install community.general ansible.posix` sans
+# requirements.yml) : le comportement de modules comme sefcontext, seboolean,
+# firewalld ou mount ne devrait pas changer d'une future version mineure à
+# l'autre, mais autant s'assurer que tout le monde installe une version dont
+# on sait qu'elle fonctionne avec ce projet plutôt que de le découvrir après
+# un dnf update.
+collections:
+  - name: community.general
+    version: ">=9.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0"

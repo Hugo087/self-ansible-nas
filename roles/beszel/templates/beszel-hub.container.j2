@@ -1,0 +1,30 @@
+[Unit]
+Description=Beszel - hub de monitoring
+After=network-online.target
+
+[Container]
+ContainerName=beszel-hub
+Image=docker.io/henrygd/beszel:latest
+AutoUpdate=registry
+
+# Comme les autres services web du projet : publié uniquement sur le
+# loopback. Caddy (Network=host) l'atteint via 127.0.0.1, les agents
+# (Network=host eux aussi, voir beszel-agent.container.j2) pareil - aucun
+# des deux ne passe par le SSO pour parler au hub, seul l'humain qui
+# consulte le dashboard via monitor.{{ public_domain }} passe par
+# lan_only + voidauth_auth (voir Caddyfile.j2).
+PublishPort=127.0.0.1:{{ beszel_hub_port }}:8090
+
+Volume={{ ssd_mountpoint }}/appdata/beszel/data:/beszel_data:Z
+
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+
+HealthCmd=/beszel health --url http://localhost:8090
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

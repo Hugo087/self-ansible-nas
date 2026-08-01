@@ -1,0 +1,82 @@
+---
+# Copie ce fichier en group_vars/all/vault.yml, remplis les vraies valeurs,
+# PUIS chiffre-le avant de committer quoi que ce soit :
+#
+#   cp group_vars/all/vault.yml.example group_vars/all/vault.yml
+#   $EDITOR group_vars/all/vault.yml
+#   ansible-vault encrypt group_vars/all/vault.yml
+#
+# Lance ensuite le playbook avec --ask-vault-pass (ou --vault-password-file).
+# Ne JAMAIS committer group_vars/all/vault.yml en clair.
+#
+# Rappel : c'est bien group_vars/all/vault.yml qui doit exister (pas
+# group_vars/vault.yml à plat) pour qu'Ansible le charge automatiquement.
+
+# --- VoidAuth ---
+vault_db_password: ""
+vault_voidauth_storage_key: ""
+vault_voidauth_smtp_api_key: ""
+
+# --- Immich ---
+vault_immich_db_password: ""
+
+# --- Samba ---
+samba_accounts:
+  - { username: "hugo087", password: "" }
+
+# --- Beszel (monitoring) ---
+# Un token PAR agent, généré dans le hub (Settings > Tokens > Add System,
+# un système par utilisateur), APRÈS le premier déploiement du rôle
+# beszel — voir le README, section Monitoring. Ne jamais réutiliser le
+# même token pour deux agents : le hub associe chaque token à une
+# empreinte (fingerprint) propre, un token partagé casse la connexion du
+# second agent qui s'enregistre avec (bug connu de Beszel, voir
+# https://github.com/henrygd/beszel/issues/1141).
+vault_beszel_tokens:
+  svc-proxy: ""
+  svc-sso: ""
+  svc-media: ""
+  svc-photos: ""
+  svc-monitor: ""
+  svc-pds: ""
+
+# --- WireGuard (wg-easy) ---
+# Hash bcrypt du mot de passe de connexion à l'interface web wg-easy - PAS
+# le mot de passe en clair. Génère-le avec l'image elle-même (nécessite que
+# Podman soit déjà installé, donc après avoir lancé --tags podman au moins
+# une fois) :
+#
+#   podman run --rm -it ghcr.io/wg-easy/wg-easy:15 wgpw 'ton_mot_de_passe'
+#
+# Colle le résultat tel quel (guillemets simples inclus si `wgpw` les a
+# affichés) - contrairement aux exemples docker-compose qu'on trouve en
+# ligne, pas besoin de doubler les $ ici (voir
+# roles/wireguard/templates/wg-easy.env.j2 pour le détail).
+vault_wg_easy_password_hash: ""
+
+# --- PDS Bluesky (Personal Data Server) ---
+# Trois secrets à générer UNE SEULE FOIS avant le tout premier déploiement
+# (roles/pds/templates/pds.env.j2) - les régénérer après coup invaliderait
+# les sessions existantes (JWT secret) ou, pire, la clé de rotation PLC qui
+# identifie ton compte de façon quasi-permanente sur le réseau (voir le
+# README, section PDS, pour l'importance de sauvegarder cette clé).
+#   vault_pds_jwt_secret :
+#     openssl rand -hex 16
+#   vault_pds_plc_rotation_key :
+#     openssl ecparam --name secp256k1 --genkey --noout --outform DER \
+#       | tail --bytes=+8 | head --bytes=32 | xxd --plain --cols 32
+#   vault_pds_admin_password :
+#     un mot de passe fort de ton choix - protège l'API d'admin du PDS
+#     (création de comptes/invitations), PAS le mot de passe du compte
+#     Bluesky lui-même (généré séparément à la création du compte, voir
+#     README).
+vault_pds_jwt_secret: ""
+vault_pds_plc_rotation_key: ""
+vault_pds_admin_password: ""
+
+# --- Framerr (dashboard) ---
+# Clé de chiffrement des identifiants d'intégration (API keys Sonarr/
+# Radarr/Seerr/qBittorrent...) stockés par Framerr. Génère-la une seule
+# fois avec `openssl rand -hex 32` - la changer après coup rend
+# illisibles les intégrations déjà configurées dans Framerr.
+vault_framerr_secret_encryption_key: ""

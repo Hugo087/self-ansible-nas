@@ -1,55 +1,10 @@
 ---
-- name: Récupérer l'UID de l'utilisateur média
-  ansible.builtin.command:
-    cmd: "id -u {{ media_user }}"
-  register: sonarr_media_uid
-  changed_when: false
-
-- name: Récupérer le GID de l'utilisateur média
-  ansible.builtin.command:
-    cmd: "id -g {{ media_user }}"
-  register: sonarr_media_gid
-  changed_when: false
-
-- name: Créer le dossier appdata Sonarr
-  ansible.builtin.file:
-    path: "{{ ssd_mountpoint }}/appdata/sonarr/config"
-    state: directory
-    owner: "{{ media_user }}"
-    group: "{{ media_user }}"
-    mode: "0755"
-
-- name: Déployer le quadlet Sonarr
-  ansible.builtin.template:
-    src: sonarr.container.j2
-    dest: "/home/{{ media_user }}/.config/containers/systemd/sonarr.container"
-    owner: "{{ media_user }}"
-    group: "{{ media_user }}"
-    mode: "0644"
+- name: Déployer Sonarr (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:
-    sonarr_puid: "{{ sonarr_media_uid.stdout | trim }}"
-    sonarr_pgid: "{{ sonarr_media_gid.stdout | trim }}"
-
-# Pas de notify/handler ici : le daemon-reload est fait directement ci-dessous,
-# dans l'ordre, pour éviter le genre d'oubli de fichier handler déjà rencontré
-# sur les rôles précédents.
-- name: Forcer le systemd --user daemon-reload (sonarr)
-  become: true
-  become_user: "{{ media_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ sonarr_media_uid.stdout | trim }}"
-  ansible.builtin.systemd:
-    scope: user
-    daemon_reload: true
-
-- name: Démarrer et activer Sonarr
-  become: true
-  become_user: "{{ media_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ sonarr_media_uid.stdout | trim }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ sonarr_media_uid.stdout | trim }}/bus"
-  ansible.builtin.systemd:
-    name: sonarr.service
-    scope: user
-    state: started
-    enabled: true
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "sonarr"
+    quadlet_units:
+      - src: sonarr.container.j2
+        name: sonarr.container
+        service: sonarr.service

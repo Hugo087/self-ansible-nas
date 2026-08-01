@@ -1,0 +1,109 @@
+# roles/beszel/tasks/main.yml
+---
+# Monitoring léger (CPU/RAM/disque/réseau/température système + stats par
+# container) pour un NAS où Podman tourne en rootless, cloisonné par
+# utilisateur système (voir containers_users, group_vars/all/vars.yml).
+#
+# Contrainte qui façonne tout ce rôle : un agent Beszel ne parle qu'à UN
+# seul socket Podman à la fois (https://beszel.dev/guide/podman). Avec
+# plusieurs utilisateurs rootless, ça veut dire un agent PAR utilisateur -
+# pas un agent unique qui verrait tout. D'où :
+#   - un hub central, sous un utilisateur dédié (monitor_user), comme les
+#     autres services
+#   - un agent par entrée de containers_users, qui ne voit donc que les
+#     containers de SON utilisateur (voulu, pas une limite à contourner)
+#
+# Bootstrap manuel requis après le premier déploiement (comme pour
+# VoidAuth et son invitation - voir README) : le hub génère sa propre
+# paire de clés ed25519 à son tout premier démarrage, et CHAQUE agent a
+# besoin d'un token d'enregistrement UNIQUE - réutiliser le même token
+# pour deux agents casse la connexion du second (bug connu de Beszel,
+# https://github.com/henrygd/beszel/issues/1141). Automatiser cette
+# création de token n'est pas fiable aujourd'hui : le "Universal Token" de
+# Beszel, censé permettre l'auto-enregistrement sans étape manuelle, a des
+# bugs d'enregistrement documentés côté API
+# (https://github.com/henrygd/beszel/discussions/1512). Autant suivre le
+# chemin réellement supporté (un token créé par système dans l'UI) plutôt
+# que de fiabiliser un raccourci qui ne l'est pas encore.
+
+- name: Déployer le hub Beszel (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ monitor_user }}"
+    quadlet_name: "beszel"
+    quadlet_appdata_dirs:
+      - data
+    quadlet_units:
+      - src: beszel-hub.container.j2
+        name: beszel-hub.container
+        service: beszel-hub.service
+
+# Requis pour que /run/user/<uid>/podman/podman.sock existe : par défaut,
+# ce projet n'utilise que la CLI podman (podman-auto-update, system
+# migrate...), jamais l'API REST. Les agents Beszel en ont besoin pour
+# lire l'état des containers de chaque utilisateur.
+- name: Récupérer l'UID de chaque utilisateur (pour activer podman.socket --user)
+  # Même remarque que dans roles/podman/tasks/main.yml : getent écrase
+  # ansible_facts.getent_passwd à chaque appel, il faut plusieurs UID en
+  # mémoire simultanément ici (une boucle de systemd --user par utilisateur),
+  # donc command + register plutôt que getent.
+  ansible.builtin.command:
+    cmd: "id -u {{ item.name }}"
+  register: beszel_containers_users_uids
+  changed_when: false
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Activer et démarrer podman.socket pour chaque utilisateur
+  become: true
+  become_user: "{{ item.item.name }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ item.stdout | trim }}/bus"
+  ansible.builtin.systemd:
+    name: podman.socket
+    scope: user
+    state: started
+    enabled: true
+  loop: "{{ beszel_containers_users_uids.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# Boucle sur l'include de quadlet_common (via `loop:` directement sur
+# include_tasks - premier usage de ce pattern dans le projet, les autres
+# rôles n'ont qu'une seule instance à déployer). Ça fonctionne car tout ce
+# qui est propre à chaque utilisateur dans deploy.yml dérive du chemin
+# /home/{{ quadlet_user }}/... (naturellement distinct à chaque itération),
+# pas du nom quadlet_name (volontairement identique "beszel-agent" à
+# chaque tour de boucle, ce qui serait un problème si on utilisait
+# quadlet_appdata_dirs - d'où la liste vide ci-dessous, l'agent n'a pas
+# besoin de config persistante).
+# loop_var: containers_user (au lieu du défaut "item") : deploy.yml, inclus
+# ci-dessous, a ses propres boucles internes (quadlet_appdata_dirs,
+# quadlet_env_files...) qui utilisent "item" par défaut. Comme
+# quadlet_env_files.dest référence "{{ item.name }}" et que ce template
+# n'est évalué que paresseusement (au moment où deploy.yml boucle en
+# interne sur ses propres tâches, pas au moment de l'include), "item"
+# se retrouverait réaffecté par ces boucles internes avant que
+# "item.name" ne soit résolu - d'où "object of type 'dict' has no
+# attribute 'name'" (item pointe alors vers le dict {src, dest} de
+# quadlet_env_files, pas vers l'entrée de containers_users). Un nom de
+# variable dédié pour cette boucle externe élimine la collision.
+- name: Déployer un agent Beszel par utilisateur de service (containers_users)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  loop: "{{ containers_users }}"
+  loop_control:
+    loop_var: containers_user
+    label: "{{ containers_user.name }}"
+  vars:
+    quadlet_user: "{{ containers_user.name }}"
+    quadlet_name: "beszel-agent"
+    quadlet_appdata_dirs: []
+    quadlet_env_files:
+      - src: beszel-agent.env.j2
+        dest: "/home/{{ containers_user.name }}/.config/beszel-agent.env"
+    quadlet_units:
+      - src: beszel-agent.container.j2
+        name: beszel-agent.container
+        service: beszel-agent.service

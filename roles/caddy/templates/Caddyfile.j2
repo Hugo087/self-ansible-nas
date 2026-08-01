@@ -13,7 +13,8 @@
 # Remplace {{ public_domain }} (variable group_vars/all.yml) par ton
 # vrai nom de domaine.
 #
-# Deux couches indépendantes sur toutes les apps (sauf sso lui-même) :
+# Deux couches indépendantes sur toutes les apps (sauf sso et le PDS
+# Bluesky, voir plus bas pour ce dernier) :
 # - lan_only (réseau) : coupe toute connexion qui ne vient pas d'une plage
 #   privée, avant même que la requête n'atteigne VoidAuth.
 # - voidauth_auth (identité) : forward_auth vers VoidAuth, même compte pour
@@ -28,20 +29,24 @@
 # reverse proxy devant n'est pas irréprochable sur X-Forwarded-For — pense
 # à passer leur "Authentication Required" sur Enabled dans chaque app,
 # VoidAuth devient la seule porte d'entrée fiable).
+#
+# TODO avant toute exposition publique réelle : `tls internal` (utilisé
+# partout ci-dessous) génère un certificat auto-signé par la CA interne de
+# Caddy - parfait en LAN une fois cette CA importée sur tes appareils, mais
+# un visiteur externe verra un avertissement de sécurité et ne peut pas
+# faire confiance à ce certificat. `public_domain` ({{ public_domain }})
+# est un domaine réservé à l'usage privé (.internal par défaut), donc
+# Let's Encrypt ne peut de toute façon pas encore émettre de certificat
+# dessus. Le jour où jellyfin/seerr sortent vraiment sur internet :
+# remplace `public_domain` par un vrai domaine public, et
+# `tls internal` par `tls {email}` (ACME HTTP-01, si le port 80 est
+# joignable depuis internet) ou par le module DNS-01 de Caddy (si tu restes
+# derrière un CGNAT) uniquement sur les blocs jellyfin/seerr - garde `tls
+# internal` sur les outils d'admin qui doivent rester LAN-only.
 
 # --- Snippets ---
 
 (voidauth_auth) {
-    # Important : on supprime d'abord toute valeur de ces headers envoyée
-    # par le client lui-même. copy_headers ne fait que les DEFINIR si
-    # VoidAuth les renvoie dans sa réponse ; il ne les supprime jamais côté
-    # requête entrante. Sans ce strip, un client pourrait injecter son
-    # propre "Remote-User: admin" et le voir transmis tel quel au backend
-    # si jamais VoidAuth ne repositionne pas le header sur un chemin donné.
-    request_header -Remote-User
-    request_header -Remote-Groups
-    request_header -Remote-Name
-    request_header -Remote-Email
 
     forward_auth 127.0.0.1:3000 {
         uri /api/authz/forward-auth
@@ -61,6 +66,42 @@
     log
 }
 
+# En-têtes de sécurité de base, sans incidence fonctionnelle : à importer
+# partout. N'inclut PAS X-Frame-Options : voir les deux snippets
+# frame_ancestors_* ci-dessous, qui gèrent ça au cas par cas via
+# Content-Security-Policy (plus fin qu'un DENY/SAMEORIGIN global - voir la
+# raison juste en dessous).
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}
+
+# frame-ancestors (CSP) plutôt que X-Frame-Options : Framerr embarque
+# Jellyfin/Sonarr/Radarr/Seerr/qBittorrent en iframe (voir le bloc framerr
+# plus bas et le README, section Dashboard) - un X-Frame-Options: DENY
+# global casserait cet affichage puisque ce sont des sous-domaines
+# différents. frame-ancestors permet d'autoriser précisément
+# framerr.{{ public_domain }} sans ouvrir le framing à qui que ce soit
+# d'autre.
+(frame_ancestors_framerr) {
+    header Content-Security-Policy "frame-ancestors 'self' https://framerr.{{ public_domain }}"
+}
+
+# Pour tout ce qui n'est PAS embarqué en iframe par Framerr : personne
+# d'autre ne devrait pouvoir encadrer ces pages (protection clickjacking).
+# Volontairement PAS appliqué à Cockpit : son interface embarque ses
+# propres pages en iframe same-origin en interne, un frame-ancestors
+# restrictif casserait cette UI - lan_only + voidauth_auth restent sa
+# seule protection contre le clickjacking, ce qui reste cohérent avec le
+# niveau de risque (accès déjà LAN + authentifié).
+(frame_ancestors_none) {
+    header Content-Security-Policy "frame-ancestors 'none'"
+}
+
 # --- VoidAuth (SSO) ---
 # Doit rester accessible partout où jellyfin/seerr le sont : c'est vers ce
 # domaine que forward_auth redirige les visiteurs non authentifiés. Pas de
@@ -75,7 +116,36 @@ sso.{{ public_domain }} {
             time_format iso8601
         }
     }
+    import security_headers
+    import frame_ancestors_none
     reverse_proxy 127.0.0.1:3000
+}
+
+# --- PDS Bluesky : seule exception de tout ce fichier ---
+# {{ pds_hostname }} est un vrai domaine public (pas {{ public_domain }},
+# qui est un TLD .internal non routable sur lequel Let's Encrypt ne peut de
+# toute façon jamais émettre de certificat) : pas de "tls internal" ici,
+# Caddy obtient un vrai certificat via ACME HTTP-01 (nécessite que ce NAS
+# soit joignable depuis internet sur 80/tcp ET 443/tcp - port-forward à
+# faire sur ton routeur, voir le README section PDS).
+#
+# NI lan_only NI voidauth_auth non plus, contrairement à absolument tout
+# le reste de ce fichier : le protocole AT exige que ce endpoint soit
+# joignable sans barrière depuis n'importe où sur internet (les autres
+# PDS, le relay bsky.network, l'AppView, l'appli mobile Bluesky doivent
+# tous pouvoir l'atteindre pour la fédération et la résolution du DID) -
+# et forward_auth casserait de toute façon l'accès API/mobile, exactement
+# comme pour Immich plus haut. L'authentification est gérée en interne par
+# le PDS lui-même (JWT), c'est le rôle de PDS_ADMIN_PASSWORD /
+# PDS_JWT_SECRET (roles/pds/templates/pds.env.j2), pas de VoidAuth.
+{{ pds_hostname }} {
+    tls {{ pds_admin_email }}
+    import access_log
+    import security_headers
+    # Port hôte 3002 (pas 3000, utilisé par sso.{{ public_domain }}
+    # ci-dessus) : voir roles/pds/templates/pds.container.j2 pour le
+    # détail de la collision évitée.
+    reverse_proxy 127.0.0.1:3002
 }
 
 # --- Apps grand public, derrière VoidAuth ---
@@ -83,6 +153,8 @@ sso.{{ public_domain }} {
 jellyfin.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_framerr
     import voidauth_auth
     reverse_proxy 127.0.0.1:8096
 }
@@ -90,8 +162,32 @@ jellyfin.{{ public_domain }} {
 seerr.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_framerr
     import voidauth_auth
     reverse_proxy 127.0.0.1:5055
+}
+
+# --- Immich : LAN uniquement pour l'instant, PAS voidauth_auth ---
+# Contrairement à jellyfin/seerr, Immich n'est volontairement PAS derrière
+# voidauth_auth : forward_auth intercepte TOUTES les requêtes (y compris
+# /api/*) et redirige vers une page de login HTML - ça fonctionne pour un
+# navigateur, mais casse l'appli mobile Immich, qui parle directement à
+# l'API et ne peut pas suivre une redirection vers un formulaire de login.
+# Immich a son propre compte (email + mot de passe créé au premier lancement,
+# admin uniquement pour l'instant) : lan_only suffit tant que ça reste un
+# usage familial sur le LAN.
+# Pour un vrai accès mobile depuis internet plus tard : configure VoidAuth
+# comme fournisseur OIDC dans Admin Settings > Authentication côté Immich -
+# contrairement à forward_auth, un vrai flux OAuth est quelque chose que
+# l'appli mobile sait suivre. Pas automatisé par ce playbook (nécessite de
+# créer le client OIDC dans VoidAuth à la main).
+photos.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import frame_ancestors_none
+    reverse_proxy 127.0.0.1:2283
 }
 
 # --- Outils d'admin : LAN + VoidAuth, les deux couches ---
@@ -99,6 +195,8 @@ seerr.{{ public_domain }} {
 sonarr.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_framerr
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:8989
@@ -107,6 +205,8 @@ sonarr.{{ public_domain }} {
 radarr.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_framerr
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:7878
@@ -115,6 +215,8 @@ radarr.{{ public_domain }} {
 prowlarr.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_none
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:9696
@@ -123,15 +225,84 @@ prowlarr.{{ public_domain }} {
 qbittorrent.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_framerr
     import lan_only
     import voidauth_auth
     reverse_proxy 127.0.0.1:8080
 }
 
-quantum.{{ public_domain }} {
+# Framerr agrège en un seul dashboard des widgets (statut Jellyfin,
+# calendriers Sonarr/Radarr, requêtes Seerr, téléchargements qBittorrent...)
+# et des tabs iframe vers ces mêmes apps - au moins aussi sensible qu'un
+# outil d'admin individuel puisqu'il expose une vue d'ensemble de toute la
+# stack, donc les deux mêmes couches. Le forward_auth ne protège que la
+# page Framerr elle-même : chaque iframe pointe vers le domaine propre du
+# service embarqué (ex. sonarr.{{ public_domain }}), qui reste protégé par
+# ses propres blocs ci-dessus, indépendamment de ce bloc-ci.
+framerr.{{ public_domain }} {
     tls internal
     import access_log
+    import security_headers
+    import frame_ancestors_none
+    import lan_only
     import voidauth_auth
-    reverse_proxy 127.0.0.1:8090
+    reverse_proxy 127.0.0.1:3001
 }
 
+# Dashboard du hub Beszel (monitoring) - ceci ne concerne QUE l'humain qui
+# consulte le dashboard dans un navigateur. Les agents parlent directement
+# au hub en 127.0.0.1:{{ beszel_hub_port }} via Network=host, sans passer
+# par Caddy (voir roles/beszel).
+monitor.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import frame_ancestors_none
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:{{ beszel_hub_port }}
+}
+
+# --- Cockpit : accès admin complet au système hôte ---
+# Cockpit donne un accès équivalent à root sur toute la machine (pas juste
+# sur un service) - au moins autant sensible que Beszel, donc les deux
+# mêmes couches, pas juste une. cockpit.socket est reconfiguré par
+# roles/zfs (regroupé là où vit déjà le plugin Cockpit custom pour ZFS,
+# voir cockpit-listen.conf.j2 et cockpit.conf.j2) pour n'écouter que sur
+# 127.0.0.1 : impossible d'atteindre Cockpit directement en contournant
+# Caddy, même en connaissant le port 9090.
+# reverse_proxy en https:// + tls_insecure_skip_verify : Cockpit sert du
+# TLS auto-signé même en local sur 127.0.0.1, il n'y a pas d'option pour le
+# servir en clair - sans risque ici puisque la connexion reste sur
+# loopback, jamais sur le réseau.
+cockpit.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import lan_only
+    import voidauth_auth
+    reverse_proxy https://127.0.0.1:9090 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+}
+
+# --- wg-easy : interface web d'admin WireGuard ---
+# Au moins aussi sensible que Cockpit (wg-easy tourne en root, Network=host
+# - voir roles/wireguard) : mêmes deux couches. Volontairement PAS de règle
+# firewalld pour {{ wg_easy_ui_port }} (roles/wireguard/tasks/main.yml) :
+# Caddy (Network=host) est le SEUL chemin vers cette UI, en loopback, jamais
+# directement sur le réseau. Ça reste joignable une fois déjà connecté au
+# VPN (10.10.0.0/24 est dans private_ranges, donc dans lan_only) : pas
+# besoin d'être physiquement sur le LAN pour gérer tes pairs en déplacement.
+vpn.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import frame_ancestors_none
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:{{ wg_easy_ui_port }}
+}

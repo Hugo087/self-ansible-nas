@@ -5,6 +5,10 @@ Requires=voidauth-db.service
 
 [Container]
 Image=docker.io/voidauth/voidauth:latest
+# Comme Caddy : AutoUpdate=registry + HealthCmd explicite (voir plus bas), pour
+# que VoidAuth (point de passage obligé pour tout le SSO) bénéficie du même
+# filet de sécurité que Caddy en cas d'image cassée.
+AutoUpdate=registry
 ContainerName=voidauth
 Network=sso.network
 # Comme jellyfin/sonarr/radarr/... : on ne publie que sur le loopback, Caddy
@@ -12,9 +16,23 @@ Network=sso.network
 # firewalld pour garder la page de login SSO hors du LAN.
 PublishPort=127.0.0.1:3000:3000
 Volume={{ ssd_mountpoint }}/appdata/voidauth/config:/app/config:Z
+Volume={{ ssd_mountpoint }}/appdata/voidauth/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
 EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth.env
 
+# Comme Caddy/Jellyfin : User= explicite pour ne pas dépendre du user par
+# défaut de l'image, combiné à UserNS=keep-id pour mapper correctement les
+# fichiers créés vers {{ sso_user }} côté hôte.
+User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
+
+# Voir roles/voidauth/templates/healthcheck.sh.j2 : explicite plutôt que de
+# compter sur le HEALTHCHECK déjà présent dans l'image, pour garantir que
+# le rollback auto de podman auto-update fonctionne bien avec quadlet.
+HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=15s
 
 [Service]
 Restart=always

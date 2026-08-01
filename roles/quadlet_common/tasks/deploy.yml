@@ -1,0 +1,166 @@
+---
+# roles/quadlet_common/tasks/deploy.yml
+#
+# Factorise le pattern répété par tous les rôles applicatifs Podman (jellyfin,
+# sonarr, radarr, prowlarr, seerr, qbittorrent, caddy, voidauth, media_common) :
+# UID/GID -> dossiers appdata -> fichiers d'environnement (secrets) ->
+# quadlet(s) -> daemon-reload --user -> start/enable.
+#
+# Inclus depuis chaque rôle appelant via :
+#   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+# (PAS via include_role/import_role : le chemin relatif garde le contexte du
+# rôle appelant, donc les `template: src: ...` ci-dessous sont bien résolus
+# depuis le dossier templates/ du rôle appelant, pas depuis quadlet_common/
+# templates/ - comportement standard d'Ansible pour include_tasks, vérifié).
+#
+# Variables attendues, définies par le rôle appelant avant l'include :
+#   quadlet_user         : utilisateur système (ex. media_user)
+#   quadlet_name          : nom du service, utilisé pour appdata/<name>/
+#   quadlet_appdata_dirs  : liste de sous-dossiers à créer sous appdata/<name>/
+#                           (défaut : ["config"], liste vide si non pertinent)
+#   quadlet_env_files     : liste de {src, dest} de fichiers d'environnement
+#                           secrets, déployés en 0600 (défaut : [])
+#   quadlet_units         : liste de {src, name, service (optionnel)}
+#                           - src     : template du quadlet (dans templates/
+#                             du rôle appelant)
+#                           - name    : nom du fichier déployé sous
+#                             ~/.config/containers/systemd/
+#                           - service : nom de l'unité systemd --user à
+#                             démarrer/activer. Omis pour les .network (le
+#                             conteneur qui les référence via Network=
+#                             obtient automatiquement une dépendance dessus,
+#                             pas besoin de le démarrer explicitement).
+#
+# À l'intérieur des templates de quadlets, `{{ quadlet_uid }}` et
+# `{{ quadlet_gid }}` sont disponibles automatiquement (calculés ici, plus
+# besoin de les recalculer dans chaque rôle appelant).
+
+- name: "Récupérer UID/GID de {{ quadlet_user }}"
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ quadlet_user }}"
+
+- name: "Créer les dossiers appdata de {{ quadlet_name }}"
+  # mode 0750 (pas 0755) : ces dossiers contiennent les fichiers de config
+  # des apps, qui eux-mêmes ne sont pas toujours protégés individuellement
+  # (ex. config.xml des *arr contient l'API key en clair, sans mode 0600
+  # dédié côté image). Aucun autre service du projet n'a besoin de lire
+  # ces dossiers (Samba ne partage jamais appdata/), donc rien ne justifie
+  # qu'ils soient lisibles par n'importe quel compte local de la machine.
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/{{ quadlet_name }}/{{ item }}"
+    state: directory
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0750"
+  loop: "{{ quadlet_appdata_dirs | default(['config']) }}"
+
+- name: "Réparer le owner/group du contenu déjà existant sous appdata/{{ quadlet_name }}"
+  # Sans ça, la tâche ci-dessus ne reprend en main que le dossier
+  # top-level (ex. appdata/voidauth/config), jamais son contenu s'il
+  # existe déjà (install manuelle antérieure, ancien test docker-compose
+  # avant la migration vers Quadlet, changement d'UID d'un utilisateur
+  # système...). Cas vécu : appdata/voidauth/config/email_templates/
+  # créé par un ancien run sous un autre UID, jamais corrigé -> EACCES au
+  # démarrage du conteneur qui tourne, lui, avec l'UID attendu.
+  # Pas de "mode" ici volontairement (contrairement à la tâche
+  # précédente) : recurse + mode forcerait aussi le bit exécution sur
+  # tous les fichiers existants (bases SQLite, images...), pas seulement
+  # les dossiers. On corrige uniquement owner/group, sans toucher aux
+  # permissions déjà en place sur le contenu.
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/{{ quadlet_name }}/{{ item }}"
+    state: directory
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    recurse: true
+  loop: "{{ quadlet_appdata_dirs | default(['config']) }}"
+
+- name: "Créer les dossiers parents des fichiers d'environnement de {{ quadlet_name }}"
+  # Indépendant de quadlet_appdata_dirs : certains rôles (ex. immich) n'ont
+  # aucun dossier "config" bind-monté mais ont quand même des secrets à
+  # déployer sous appdata/<name>/ - ce dossier doit exister dans tous les cas.
+  # mode 0750 pour la même raison que la tâche précédente.
+  ansible.builtin.file:
+    path: "{{ item.dest | dirname }}"
+    state: directory
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0750"
+  loop: "{{ quadlet_env_files | default([]) }}"
+  loop_control:
+    label: "{{ item.dest | dirname }}"
+
+- name: "Déployer les fichiers d'environnement (secrets, 0600) de {{ quadlet_name }}"
+  # no_log: true est nécessaire ici, pas juste par prudence générale : ces
+  # fichiers contiennent les secrets du vault (mots de passe DB, clés API,
+  # tokens SMTP...). Sans no_log, un `ansible-playbook --diff` (réflexe
+  # courant pour vérifier ce qui va changer avant de valider) afficherait
+  # le contenu complet en clair du diff dans le terminal/les logs - no_log
+  # supprime aussi cet affichage, pas seulement le résultat de la tâche.
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0600"
+  loop: "{{ quadlet_env_files | default([]) }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  register: quadlet_common_env_files_deployed
+  no_log: true
+
+- name: "Créer le dossier des quadlets pour {{ quadlet_user }}"
+  ansible.builtin.file:
+    path: "/home/{{ quadlet_user }}/.config/containers/systemd"
+    state: directory
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0755"
+
+- name: "Déployer le(s) quadlet(s) de {{ quadlet_name }}"
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/home/{{ quadlet_user }}/.config/containers/systemd/{{ item.name }}"
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0644"
+  vars:
+    quadlet_uid: "{{ ansible_facts.getent_passwd[quadlet_user][1] }}"
+    quadlet_gid: "{{ ansible_facts.getent_passwd[quadlet_user][2] }}"
+  loop: "{{ quadlet_units }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: quadlet_common_units_deployed
+
+- name: "Forcer le systemd --user daemon-reload ({{ quadlet_user }})"
+  become: true
+  become_user: "{{ quadlet_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[quadlet_user][1] }}"
+  ansible.builtin.systemd:
+    scope: user
+    daemon_reload: true
+
+- name: "Démarrer et activer les services de {{ quadlet_name }}"
+  # state: started est idempotent et ne redémarre PAS un service déjà actif
+  # (voir la doc du module systemd) : sans ce calcul explicite, modifier un
+  # .container déjà déployé (nouveau HealthCmd, nouveau Volume...) ou un
+  # secret dans le vault ne prendrait jamais effet sur un service qui tourne
+  # déjà - il faudrait un `systemctl --user restart` manuel après CHAQUE run
+  # qui change quelque chose. `restarted` uniquement quand un fichier a
+  # réellement changé (quadlet ou .env) : pas de redémarrage inutile d'un
+  # service qui n'a rien à appliquer.
+  become: true
+  become_user: "{{ quadlet_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[quadlet_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[quadlet_user][1] }}/bus"
+  ansible.builtin.systemd:
+    name: "{{ item.service }}"
+    scope: user
+    state: "{{ 'restarted' if (quadlet_common_units_deployed.changed or quadlet_common_env_files_deployed.changed) else 'started' }}"
+    enabled: true
+  loop: "{{ quadlet_units | selectattr('service', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.service }}"

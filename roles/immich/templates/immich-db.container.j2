@@ -1,0 +1,31 @@
+[Unit]
+Description=PostgreSQL (extension vectorielle) pour Immich
+After=network-online.target
+
+[Container]
+ContainerName=immich-db
+# Contrairement à toutes les autres images de ce projet : PAS de tag
+# "release"/latest ni d'AutoUpdate=registry ici, volontairement. C'est
+# l'image officielle Immich (Postgres + extension vectorielle vectorchord),
+# pas un Postgres vanilla interchangeable : la version de l'extension doit
+# rester cohérente avec la version d'immich-server. Un auto-update
+# silencieux de la BDD pourrait la rendre incompatible avec le serveur en
+# place, contrairement à un simple redémarrage d'un conteneur sans état.
+# Quand tu montes de version Immich : vérifie le tag Postgres recommandé
+# dans les release notes (https://github.com/immich-app/immich/releases)
+# avant de changer cette ligne, ne mets pas juste ":release" ici.
+Image=ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+Network=photos.network
+EnvironmentFile={{ ssd_mountpoint }}/appdata/immich/immich-db.env
+Environment=POSTGRES_INITDB_ARGS=--data-checksums
+# Volume nommé (comme voidauth-db-vol) plutôt qu'un bind-mount : les fichiers
+# internes de Postgres n'ont pas vocation à être inspectés/édités à la main.
+Volume=immich-db-vol:/var/lib/postgresql/data:Z
+ShmSize=128m
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,37 @@
+# roles/glances/tasks/main.yml
+---
+# Glances en mode serveur web (GLANCES_OPT=-w, API REST + UI sur le port
+# 61208), pour une seule raison : Framerr a un widget natif "Glances"
+# (CPU/mémoire/disque/réseau/température, voir roles/framerr) qui a besoin
+# de ce format d'API précis. Beszel (roles/beszel) reste l'outil de
+# monitoring "sérieux" du projet (hub + un agent par utilisateur, historique,
+# alerting) - Glances n'est là que pour alimenter ce widget, pas pour le
+# remplacer.
+#
+# Sur media.network, sous media_user, comme les autres apps que Framerr
+# consomme (sonarr, radarr, seerr, qbittorrent) : c'est ce qui permet à
+# Framerr de le joindre par nom de container (http://glances:61208, voir
+# le mode "With Media Stack" de la doc Framerr) plutôt que par l'IP du
+# host. Conséquence assumée : les métriques CPU/mémoire/disque viennent
+# bien du host (procfs n'est pas viruellement recloisonné par simple
+# namespace réseau), mais les stats "réseau" de Glances ne verront que
+# l'interface virtuelle du container, pas la vraie carte réseau du NAS -
+# sans intérêt ici (juste un widget dashboard), mais si tu veux un jour du
+# vrai débit réseau host, c'est une des métriques que Beszel remonte déjà
+# correctement (lui tourne en Network=host, voir roles/beszel).
+#
+# Pas de PUID/PGID (l'image officielle nicolargo/glances ne les supporte
+# pas, contrairement à ce que suggèrent certains tutos tiers) et pas de
+# volume persistant : Glances ne stocke aucun état, il ne fait
+# qu'exposer un instantané des métriques à chaque requête HTTP.
+
+- name: Déployer Glances (quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "glances"
+    quadlet_appdata_dirs: []
+    quadlet_units:
+      - src: glances.container.j2
+        name: glances.container
+        service: glances.service

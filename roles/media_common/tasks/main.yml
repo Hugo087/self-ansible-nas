@@ -32,33 +32,15 @@
     group: "{{ media_user }}"
     mode: "02775"
 
-- name: Récupérer l'UID de l'utilisateur média
-  ansible.builtin.command:
-    cmd: "id -u {{ media_user }}"
-  register: media_common_user_info
-  changed_when: false
-
-- name: Créer le dossier des quadlets pour l'utilisateur média
-  ansible.builtin.file:
-    path: "/home/{{ media_user }}/.config/containers/systemd"
-    state: directory
-    owner: "{{ media_user }}"
-    group: "{{ media_user }}"
-    mode: "0755"
-
-- name: Déployer le quadlet du réseau partagé média
-  ansible.builtin.template:
-    src: media.network.j2
-    dest: "/home/{{ media_user }}/.config/containers/systemd/media.network"
-    owner: "{{ media_user }}"
-    group: "{{ media_user }}"
-    mode: "0644"
-
-- name: Forcer le systemd --user daemon-reload (média)
-  become: true
-  become_user: "{{ media_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ media_common_user_info.stdout | trim }}"
-  ansible.builtin.systemd:
-    scope: user
-    daemon_reload: true
+- name: Déployer le réseau Podman partagé de la stack média
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "media_common"
+    quadlet_appdata_dirs: []  # rien à créer sous appdata/ pour ce rôle
+    quadlet_units:
+      # Pas de clé "service" : les .network n'ont pas besoin d'être démarrés
+      # explicitement, les conteneurs qui les référencent via Network=
+      # obtiennent automatiquement la dépendance systemd dessus.
+      - src: media.network.j2
+        name: media.network

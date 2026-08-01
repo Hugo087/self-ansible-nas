@@ -1,0 +1,31 @@
+[Unit]
+Description=Glances - metriques systeme (widget Framerr)
+After=network-online.target
+
+[Container]
+ContainerName=glances
+Image=docker.io/nicolargo/glances:latest-full
+AutoUpdate=registry
+
+Network=media.network
+
+# 127.0.0.1 : Glances n'est utilisé que par Framerr (qui le joint en
+# interne via media.network par nom de container, http://glances:61208 -
+# ce PublishPort ne sert donc même pas à ça). Il ne sert qu'à un accès
+# humain occasionnel depuis le NAS lui-même (navigateur local, ou tunnel
+# SSH `ssh -L 61208:localhost:61208 ...` depuis un autre poste) - pas
+# besoin d'écouter sur toutes les interfaces ni d'ouvrir quoi que ce soit
+# au LAN pour ça.
+PublishPort=127.0.0.1:61208:61208
+
+# -w : mode serveur web (API REST + UI HTML sur le port 61208, pas de mode
+# console ici, ce container n'a pas de TTY interactif).
+Environment=TZ=Europe/Paris
+Environment=GLANCES_OPT=-w
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

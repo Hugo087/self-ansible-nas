@@ -1,0 +1,100 @@
+# roles/wireguard/tasks/main.yml
+---
+# wg-easy (WireGuard + interface web d'admin), pour un accès distant aux
+# services qui ne sont normalement joignables qu'en local (127.0.0.1) ou
+# depuis le LAN (voir roles/caddy, snippet lan_only).
+#
+# Rôle volontairement séparé du reste : c'est le SEUL endroit de tout ce
+# projet où un container tourne réellement en root, avec Network=host.
+# Toutes les autres apps passent par quadlet_common (rootless,
+# become_user), qui ne convient pas ici - créer l'interface wg0 dans le
+# netns de l'hôte exige d'être root dans CE namespace précis, ce qu'un
+# utilisateur non-root ne peut structurellement pas obtenir (propriété des
+# namespaces Linux, pas une histoire de capabilities mal choisies). D'où un
+# chemin de déploiement dédié ci-dessous plutôt que l'include habituel de
+# ../../quadlet_common/tasks/deploy.yml.
+
+- name: Charger le module wireguard maintenant, et le rendre persistant au boot
+  # persistent: present écrit /etc/modules-load.d/wireguard.conf - sans ça,
+  # SYS_MODULE serait nécessaire côté container pour que le module se
+  # charge tout seul au premier démarrage de wg-easy après un reboot. Le
+  # précharger ici une bonne fois pour toutes permet de ne JAMAIS accorder
+  # cette capability au container (voir wg-easy.container.j2).
+  community.general.modprobe:
+    name: wireguard
+    state: present
+    persistent: present
+
+- name: Créer le dossier appdata de wg-easy
+  # 0700 (pas 0750 comme les autres rôles) : ce dossier contient les clés
+  # privées WireGuard du serveur ET de chaque pair - contrairement à
+  # appdata/<service>/config pour le reste du projet, rien ne justifie
+  # qu'un autre compte du système (même un compte de service) y ait accès.
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/wireguard/data"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Déployer le fichier d'environnement (secret, 0600) de wg-easy
+  # no_log: true : ce fichier contient PASSWORD_HASH (vault). Même
+  # raisonnement que quadlet_common/tasks/deploy.yml pour les autres rôles -
+  # sans no_log, un `--diff` afficherait le hash en clair dans le terminal.
+  ansible.builtin.template:
+    src: wg-easy.env.j2
+    dest: "{{ ssd_mountpoint }}/appdata/wireguard/wg-easy.env"
+    owner: root
+    group: root
+    mode: "0600"
+  register: wireguard_env_deployed
+  no_log: true
+
+- name: Créer le dossier des quadlets système
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Déployer le quadlet wg-easy (système, root - pas ~/.config/containers/systemd)
+  ansible.builtin.template:
+    src: wg-easy.container.j2
+    dest: /etc/containers/systemd/wg-easy.container
+    owner: root
+    group: root
+    mode: "0644"
+  register: wireguard_quadlet_deployed
+
+- name: "Forcer le daemon-reload système (systemd, pas --user)"
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Démarrer et activer wg-easy.service
+  # Comme quadlet_common : restart seulement si quelque chose a réellement
+  # changé (quadlet ou .env), pour ne pas couper les pairs déjà connectés à
+  # chaque run ansible qui ne modifie rien.
+  ansible.builtin.systemd:
+    name: wg-easy.service
+    state: "{{ 'restarted' if (wireguard_quadlet_deployed.changed or wireguard_env_deployed.changed) else 'started' }}"
+    enabled: true
+
+# Uniquement le tunnel WireGuard lui-même. PAS de règle pour
+# wg_easy_ui_port (51821) ici, volontairement - même raisonnement que
+# Cockpit (roles/zfs/tasks/main.yml) : l'UI n'est jamais censée être
+# joignable directement, ni depuis le LAN ni depuis internet, seulement via
+# Caddy en loopback (127.0.0.1:{{ wg_easy_ui_port }}, voir
+# roles/caddy/templates/Caddyfile.j2, bloc vpn.{{ public_domain }}). Ajouter
+# une règle firewalld pour ce port serait donc strictement inutile, et irait
+# à l'encontre de la défense en profondeur recherchée ici.
+#
+# Rappel (à faire manuellement, pas automatisable depuis ce playbook) :
+# seul {{ wg_easy_port }}/udp doit être redirigé depuis internet sur ton
+# routeur - jamais {{ wg_easy_ui_port }}.
+- name: Ouvrir uniquement le port WireGuard (tunnel) dans firewalld
+  ansible.posix.firewalld:
+    port: "{{ wg_easy_port }}/udp"
+    permanent: true
+    immediate: true
+    state: enabled

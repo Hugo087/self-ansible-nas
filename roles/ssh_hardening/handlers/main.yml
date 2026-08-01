@@ -1,0 +1,8 @@
+---
+# Redémarrer sshd ne coupe pas les sessions déjà établies (dont celle
+# utilisée par ce playbook) : seul le processus qui écoute les NOUVELLES
+# connexions est concerné, la session TCP en cours n'est pas affectée.
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted

@@ -1,0 +1,31 @@
+# roles/framerr/tasks/main.yml
+---
+# Framerr : dashboard homelab (widgets Jellyfin/Sonarr/Radarr/Seerr/
+# qBittorrent, tabs iframe) - https://github.com/Framerrr/Framerr.
+# Contrairement à Seerr, l'image supporte bien PUID/PGID (comme les images
+# linuxserver.io) : mêmes Environment=PUID/PGID + UserNS=keep-id que
+# jellyfin/sonarr/radarr/prowlarr/qbittorrent, pas le User= direct utilisé
+# par seerr.
+#
+# Sur le réseau media (media.network) et sous media_user, comme le reste
+# de la stack média : Framerr n'a de sens que s'il peut atteindre les
+# autres services par nom de container (cf. son mode "With Media Stack"
+# dans sa doc), ce qui suppose le même réseau Podman rootless.
+#
+# SECRET_ENCRYPTION_KEY chiffre les identifiants d'intégration (API keys
+# Sonarr/Radarr/etc.) stockés par Framerr - un vrai secret, pas une config
+# publique comme beszel_hub_key : déployé via un fichier d'environnement
+# 0600 (quadlet_env_files), jamais en clair dans le quadlet lui-même.
+
+- name: Déployer Framerr (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "framerr"
+    quadlet_env_files:
+      - src: framerr.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/framerr/framerr.env"
+    quadlet_units:
+      - src: framerr.container.j2
+        name: framerr.container
+        service: framerr.service
