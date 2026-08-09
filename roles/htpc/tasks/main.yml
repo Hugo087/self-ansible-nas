@@ -5,24 +5,16 @@
 # saute-le avec --skip-tags htpc ailleurs (rien à voir sur un écran dans une
 # VM sans GPU dédié de toute façon).
 
+- name: Importer la clé de signature OpenZFS (key2, Fedora 37+ / EL9+)
+  ansible.builtin.rpm_key:
+    key: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
+    fingerprint: "E9A4 91A3 DE24 7814 E7E0 67EA E06F 8ECD D651 FF2E"
+    state: present
+
 - name: Activer RPM Fusion Free (nécessaire pour le paquet kodi)
-  # disable_gpg_check nécessaire ici (mise à jour de la note précédente,
-  # devenue fausse avec dnf5) : sur les Fedora récents (dnf5, par défaut
-  # depuis Fedora 41+, généralisé en 43), installer un RPM par URL crée un
-  # dépôt éphémère "@commandline" et dnf5 refuse maintenant catégoriquement
-  # ("The repository does not have any OpenPGP keys configured") au lieu
-  # du simple avertissement/prompt qu'affichait dnf4 dans ce cas précis.
-  # C'est un problème d'œuf-et-poule inhérent aux paquets "-release" : ce
-  # paquet apporte lui-même la clé GPG du dépôt RPM Fusion, donc on ne peut
-  # pas vérifier sa propre signature avec une clé qu'il n'a pas encore
-  # déposée sur le système. Le disable_gpg_check ne concerne QUE ce paquet
-  # bootstrap : tout ce qui sera installé depuis le dépôt RPM Fusion une
-  # fois activé (kodi, etc.) reste vérifié normalement contre la vraie clé
-  # que ce paquet installe.
   ansible.builtin.dnf:
     name: "{{ rpmfusion_free_release_rpm }}"
     state: present
-    disable_gpg_check: true
 
 # COPR tiers non officiel : ni Fedora ni RPM Fusion ne packagent
 # moonlight-qt. Vérifie que ce COPR est toujours actif avant de lancer ce

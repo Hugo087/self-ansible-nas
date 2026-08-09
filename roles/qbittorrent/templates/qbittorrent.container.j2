@@ -17,14 +17,22 @@ PublishPort=6881:6881
 PublishPort=6881:6881/udp
 
 Environment=TZ=Europe/Paris
-Environment=PUID={{ quadlet_uid }}
-Environment=PGID={{ quadlet_gid }}
 Environment=WEBUI_PORT=8080
-
-UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/qbittorrent/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
+
+# Pas d'endpoint /ping dédié comme sonarr/radarr/prowlarr côté qBittorrent :
+# on se contente de vérifier que la page de login WebUI répond (200, sans
+# authentification), ce qui suffit à détecter un process planté/une image
+# cassée. wget : voir le commentaire dans sonarr.container.j2.
+HealthCmd=wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

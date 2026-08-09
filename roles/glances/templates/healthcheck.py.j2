@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# Généré par Ansible (roles/glances/templates/healthcheck.py.j2)
+#
+# HealthCmd pour glances.container.j2. Script Python plutôt que shell :
+# Glances est lui-même écrit en Python, donc python3 est garanti présent
+# dans l'image (contrairement à curl/wget, dont la présence dans le tag
+# "-full" n'est ni garantie ni documentée). Simple test de connexion TCP
+# sur le port de l'API REST/UI (pas de vraie requête HTTP) : ça ne vérifie
+# pas le contenu applicatif, mais ça suffit à détecter un process planté /
+# une image cassée qui n'écoute plus du tout après une mise à jour.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run glances
+#   systemctl --user status glances.service
+import socket
+import sys
+
+try:
+    socket.create_connection(("127.0.0.1", 61208), timeout=2).close()
+except OSError:
+    sys.exit(1)
+sys.exit(0)

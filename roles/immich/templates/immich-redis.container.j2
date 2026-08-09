@@ -12,6 +12,15 @@ Network=photos.network
 # d'Immich (perdre son contenu au redémarrage n'est pas grave, Immich
 # retraite les jobs interrompus).
 HealthCmd=redis-cli ping || exit 1
+HealthInterval=15s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=10s
+# Notify=healthy relie ce HealthCmd au rollback de podman-auto-update.
+# HealthOnFailure=kill est sans risque ici : pas de données à préserver
+# (voir commentaire plus haut), un redémarrage forcé ne coûte rien.
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always

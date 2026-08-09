@@ -29,6 +29,17 @@ UserNS=keep-id
 # aucun autre conteneur.
 Volume={{ immich_upload_dir }}:/data:Z
 Volume=/etc/localtime:/etc/localtime:ro
+Volume={{ ssd_mountpoint }}/appdata/immich/healthcheck-server.sh:/usr/local/bin/healthcheck.sh:Z,ro
+
+# Voir roles/immich/templates/healthcheck-server.sh.j2 pour le détail du
+# choix technique.
+HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always

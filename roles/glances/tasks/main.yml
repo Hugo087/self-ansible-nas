@@ -25,6 +25,27 @@
 # volume persistant : Glances ne stocke aucun état, il ne fait
 # qu'exposer un instantané des métriques à chaque requête HTTP.
 
+# Créé explicitement ici (contrairement à quadlet_appdata_dirs: [] plus
+# bas, qui ne crée aucun dossier) : le quadlet glances.container bind-monte
+# healthcheck.py (voir glances.container.j2), donc ce fichier doit déjà
+# exister sur le disque avant que quadlet_common ne démarre le service -
+# même raison que pour caddy/pds/voidauth/seerr/framerr.
+- name: Créer le dossier appdata de Glances
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/glances"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0750"
+
+- name: Déployer le script de healthcheck de Glances
+  ansible.builtin.template:
+    src: healthcheck.py.j2
+    dest: "{{ ssd_mountpoint }}/appdata/glances/healthcheck.py"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
 - name: Déployer Glances (quadlet, service)
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:

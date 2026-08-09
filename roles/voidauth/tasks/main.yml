@@ -18,14 +18,6 @@
     group: "{{ sso_user }}"
     mode: "0750"
 
-- name: Déployer le script de healthcheck de VoidAuth
-  ansible.builtin.template:
-    src: healthcheck.sh.j2
-    dest: "{{ ssd_mountpoint }}/appdata/voidauth/healthcheck.sh"
-    owner: "{{ sso_user }}"
-    group: "{{ sso_user }}"
-    mode: "0755"
-
 - name: Déployer VoidAuth (appdata, réseau, quadlets, services)
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:

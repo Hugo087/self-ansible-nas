@@ -1,0 +1,21 @@
+#!/bin/sh
+# Généré par Ansible (roles/immich/templates/healthcheck-server.sh.j2)
+#
+# HealthCmd pour immich-server.container.j2. Utilise le script de
+# healthcheck officiel intégré à l'image s'il est présent
+# (/usr/src/app/bin/immich-healthcheck, voir
+# https://github.com/immich-app/immich/discussions/6320), avec un repli sur
+# un simple test de connexion TCP sinon (node est déjà présent dans
+# l'image - appli Node/NestJS - pas besoin de curl/wget, même logique que
+# roles/pds/templates/healthcheck.sh.j2). Le repli sert de garde-fou si ce
+# chemin venait à changer dans une future version de l'image : dans ce cas
+# précis, ce n'est plus qu'un test TCP (pas de vérif applicative), à
+# recontrôler après une montée de version majeure d'Immich.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run immich-server
+#   systemctl --user status immich-server.service
+if [ -x /usr/src/app/bin/immich-healthcheck ]; then
+    exec /usr/src/app/bin/immich-healthcheck
+fi
+node -e "require('net').createConnection(2283, '127.0.0.1').on('connect', function() { process.exit(0); }).on('error', function() { process.exit(1); });"

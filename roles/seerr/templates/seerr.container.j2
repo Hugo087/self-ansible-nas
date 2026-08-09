@@ -20,6 +20,17 @@ User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/seerr/config:/app/config:Z
+Volume={{ ssd_mountpoint }}/appdata/seerr/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
+
+# Voir roles/seerr/templates/healthcheck.sh.j2 pour le détail du choix
+# technique (test TCP, pas d'endpoint applicatif confirmé pour ce fork).
+HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

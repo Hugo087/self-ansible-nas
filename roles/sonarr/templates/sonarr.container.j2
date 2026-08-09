@@ -11,14 +11,25 @@ Network=media.network
 PublishPort=127.0.0.1:8989:8989
 
 Environment=TZ=Europe/Paris
-Environment=PUID={{ quadlet_uid }}
-Environment=PGID={{ quadlet_gid }}
-
-UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/sonarr/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/tvshows:/tv:z
 Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
+
+# /ping : endpoint dédié aux healthchecks, non authentifié, commun à toute
+# la famille Servarr (Sonarr/Radarr/Prowlarr/Lidarr...) - pas besoin de clé
+# API. wget (pas curl) : présent par défaut dans les images linuxserver.io
+# (busybox), à vérifier avec `podman exec sonarr which wget` si ça change.
+# HealthStartPeriod=60s : plus long que Caddy (10s), pour laisser le temps
+# aux éventuelles migrations de base SQLite au premier démarrage - reste
+# large par rapport au TimeoutStartSec=300 ci-dessous.
+HealthCmd=wget --no-verbose --tries=1 --spider http://localhost:8989/ping || exit 1
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Généré par Ansible (roles/seerr/templates/healthcheck.sh.j2)
+#
+# HealthCmd pour seerr.container.j2. Pas d'endpoint de statut non
+# authentifié confirmé pour ce fork récent (ghcr.io/seerr-team/seerr, ex
+# Overseerr/Jellyseerr) : plutôt que de parier sur un chemin d'API qui
+# pourrait ne pas exister ou changer, on se contente d'un test de connexion
+# TCP sur le port applicatif - node est déjà présent dans l'image (c'est
+# une appli Node), pas besoin de curl/wget, même logique que
+# roles/pds/templates/healthcheck.sh.j2. Ca ne vérifie pas le contenu
+# applicatif, mais ça suffit à détecter un process planté / une image
+# cassée qui n'écoute plus du tout après une mise à jour.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run seerr
+#   systemctl --user status seerr.service
+node -e "require('net').createConnection(5055, '127.0.0.1').on('connect', function() { process.exit(0); }).on('error', function() { process.exit(1); });"

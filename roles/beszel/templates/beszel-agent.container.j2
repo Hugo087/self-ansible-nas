@@ -36,7 +36,13 @@ Volume=/run/user/{{ quadlet_uid }}/podman/podman.sock:/run/user/{{ quadlet_uid }
 User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
 
-HealthCmd=/agent health
+HealthCmd=CMD /agent health
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=15s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always

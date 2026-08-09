@@ -23,6 +23,22 @@ Environment=POSTGRES_INITDB_ARGS=--data-checksums
 Volume=immich-db-vol:/var/lib/postgresql/data:Z
 ShmSize=128m
 
+# Pas d'AutoUpdate=registry ici (voir plus haut), donc pas de filet de
+# rollback à alimenter - mais ce HealthCmd reste utile pour deux raisons :
+# la visibilité (podman ps affiche l'état réel plutôt qu'un simple "Up"),
+# et surtout Notify=healthy, qui fait que immich-server.service (After=/
+# Requires= immich-db.service) n'est considéré comme pouvant démarrer
+# qu'une fois Postgres réellement prêt à accepter des connexions - pas
+# juste une fois le process lancé (utile en particulier après un reboot,
+# où le premier démarrage de Postgres peut prendre plus de temps que
+# d'habitude si une vérification WAL est nécessaire).
+HealthCmd=pg_isready -U {{ immich_db_user }} -h localhost
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
+Notify=healthy
+
 [Service]
 Restart=always
 TimeoutStartSec=300

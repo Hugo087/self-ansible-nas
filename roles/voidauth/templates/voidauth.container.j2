@@ -16,7 +16,6 @@ Network=sso.network
 # firewalld pour garder la page de login SSO hors du LAN.
 PublishPort=127.0.0.1:3000:3000
 Volume={{ ssd_mountpoint }}/appdata/voidauth/config:/app/config:Z
-Volume={{ ssd_mountpoint }}/appdata/voidauth/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
 EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth.env
 
 # Comme Caddy/Jellyfin : User= explicite pour ne pas dépendre du user par
@@ -28,11 +27,15 @@ UserNS=keep-id
 # Voir roles/voidauth/templates/healthcheck.sh.j2 : explicite plutôt que de
 # compter sur le HEALTHCHECK déjà présent dans l'image, pour garantir que
 # le rollback auto de podman auto-update fonctionne bien avec quadlet.
-HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthCmd=["node", "-e", "fetch('http://localhost:3000/healthcheck').then(r => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3
-HealthStartPeriod=15s
+HealthStartPeriod=30s
+# Comme Caddy/PDS : Notify=healthy relie ce HealthCmd au rollback
+# automatique de podman-auto-update, ce qui manquait jusqu'ici.
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always

@@ -1,18 +1,18 @@
 ---
-- name: Restart Caddy
-  block:
-    - name: Rafraîchir l'UID/GID de {{ proxy_user }}
-      ansible.builtin.getent:
-        database: passwd
-        key: "{{ proxy_user }}"
+- name: Rafraîchir l'UID/GID de {{ proxy_user }}
+  listen: Restart Caddy
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ proxy_user }}"
 
-    - name: Redémarrer le service Caddy
-      become: true
-      become_user: "{{ proxy_user }}"
-      environment:
-        XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[proxy_user][1] }}"
-        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[proxy_user][1] }}/bus"
-      ansible.builtin.systemd:
-        name: caddy.service
-        scope: user
-        state: restarted
+- name: Redémarrer le service Caddy
+  listen: Restart Caddy
+  become: true
+  become_user: "{{ proxy_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[proxy_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd[proxy_user][1] }}/bus"
+  ansible.builtin.systemd:
+    name: caddy.service
+    scope: user
+    state: restarted

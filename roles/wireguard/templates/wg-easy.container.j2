@@ -26,14 +26,6 @@ Network=host
 
 AddCapability=NET_ADMIN
 AddCapability=NET_RAW
-# PAS de SYS_MODULE ici volontairement : le module wireguard est chargé une
-# bonne fois pour toutes au boot par ce rôle (voir tasks/main.yml), donc ce
-# container n'a jamais besoin de charger un module kernel lui-même - une
-# capability en moins sur le composant le plus privilégié de toute la
-# stack (SYS_MODULE équivaut presque à un accès root complet si jamais ce
-# container était compromis).
-Sysctl=net.ipv4.ip_forward=1
-Sysctl=net.ipv4.conf.all.src_valid_mark=1
 
 Environment=WG_HOST={{ wg_easy_host }}
 Environment=WG_DEFAULT_ADDRESS=10.10.0.x
@@ -42,9 +34,26 @@ Environment=WG_DEFAULT_DNS={{ wg_easy_dns }}
 # quadlet est déployé en 0644 sous /etc/containers/systemd/, donc lisible
 # par n'importe quel compte local de la machine si le secret y était écrit
 # en clair.
-EnvironmentFile={{ ssd_mountpoint }}/appdata/wireguard/wg-easy.env
 
 Volume={{ ssd_mountpoint }}/appdata/wireguard/data:/etc/wireguard:Z
+
+# `wg show wg0` : vérifie que l'interface WireGuard elle-même existe et
+# répond, pas juste que le process web tourne - c'est la partie la plus
+# critique de ce container (voir la discussion sur le rootless partiel).
+# Ne nécessite aucune capability en plus de NET_ADMIN/NET_RAW déjà
+# accordées ci-dessus, et l'outil `wg` est forcément présent dans cette
+# image (c'est son rôle). Pas de HealthOnFailure=kill ici, contrairement
+# aux autres services : tuer ce container reconnecterait tous les pairs
+# WireGuard d'un coup, un impact bien plus large qu'un simple redémarrage
+# d'app web - on préfère se contenter de la visibilité (podman ps,
+# Notify=healthy pour le rollback auto-update) et laisser une intervention
+# manuelle décider d'un redémarrage en cas de souci persistant.
+HealthCmd=wg show wg0 || exit 1
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+Notify=healthy
 
 [Service]
 Restart=always

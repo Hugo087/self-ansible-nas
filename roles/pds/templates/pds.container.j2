@@ -47,6 +47,11 @@ HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3
 HealthStartPeriod=30s
+# Comme Caddy : Notify=healthy est ce qui relie ce HealthCmd au rollback
+# automatique de podman-auto-update (sans ça, systemd considère le service
+# "démarré" dès le lancement du process, jamais en fonction du healthcheck).
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

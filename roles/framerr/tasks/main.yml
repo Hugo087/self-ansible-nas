@@ -17,6 +17,27 @@
 # publique comme beszel_hub_key : déployé via un fichier d'environnement
 # 0600 (quadlet_env_files), jamais en clair dans le quadlet lui-même.
 
+# Créé explicitement ici, AVANT le include quadlet_common ci-dessous - même
+# raison que pour caddy/pds/voidauth/seerr : le quadlet framerr.container
+# bind-monte healthcheck.sh (voir framerr.container.j2), donc ce fichier
+# doit déjà exister sur le disque avant que quadlet_common ne démarre le
+# service.
+- name: Créer le dossier appdata de Framerr
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/framerr"
+    state: directory
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0750"
+
+- name: Déployer le script de healthcheck de Framerr
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: "{{ ssd_mountpoint }}/appdata/framerr/healthcheck.sh"
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0755"
+
 - name: Déployer Framerr (appdata, quadlet, service)
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:

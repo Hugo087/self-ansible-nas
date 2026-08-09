@@ -138,15 +138,15 @@ sso.{{ public_domain }} {
 # comme pour Immich plus haut. L'authentification est gérée en interne par
 # le PDS lui-même (JWT), c'est le rôle de PDS_ADMIN_PASSWORD /
 # PDS_JWT_SECRET (roles/pds/templates/pds.env.j2), pas de VoidAuth.
-{{ pds_hostname }} {
-    tls {{ pds_admin_email }}
-    import access_log
-    import security_headers
-    # Port hôte 3002 (pas 3000, utilisé par sso.{{ public_domain }}
-    # ci-dessus) : voir roles/pds/templates/pds.container.j2 pour le
-    # détail de la collision évitée.
-    reverse_proxy 127.0.0.1:3002
-}
+# {{ pds_hostname }} {
+#     tls {{ pds_admin_email }}
+#     import access_log
+#     import security_headers
+#     # Port hôte 3002 (pas 3000, utilisé par sso.{{ public_domain }}
+#     # ci-dessus) : voir roles/pds/templates/pds.container.j2 pour le
+#     # détail de la collision évitée.
+#     reverse_proxy 127.0.0.1:3002
+# }
 
 # --- Apps grand public, derrière VoidAuth ---
 
@@ -155,7 +155,6 @@ jellyfin.{{ public_domain }} {
     import access_log
     import security_headers
     import frame_ancestors_framerr
-    import voidauth_auth
     reverse_proxy 127.0.0.1:8096
 }
 

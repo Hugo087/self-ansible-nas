@@ -16,10 +16,29 @@ Network=photos.network
 # un GPU compatible plus tard, l'image a des variantes de tag (-cuda,
 # -openvino, -rocm...), voir https://docs.immich.app/features/ml-hardware-acceleration
 Volume=immich-ml-cache-vol:/cache:Z
+Volume={{ ssd_mountpoint }}/appdata/immich/healthcheck-ml.py:/usr/local/bin/healthcheck.py:Z,ro
+
+# Voir roles/immich/templates/healthcheck-ml.py.j2 pour le détail du choix
+# technique. HealthStartPeriod=180s : le premier démarrage télécharge les
+# modèles ML dans le cache (peut prendre plusieurs minutes selon la
+# connexion), pas seulement lancer le process - un délai plus court
+# déclencherait un rollback intempestif sur un premier déploiement tout à
+# fait sain.
+HealthCmd=python3 /usr/local/bin/healthcheck.py
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=180s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always
-TimeoutStartSec=300
+# Relevé par rapport aux 300s par défaut du reste du projet : avec
+# Notify=healthy ci-dessus, systemd attend que le healthcheck passe au vert
+# avant de considérer le service démarré - or le tout premier démarrage
+# (téléchargement des modèles) peut dépasser les 300s habituels.
+TimeoutStartSec=600
 
 [Install]
 WantedBy=default.target

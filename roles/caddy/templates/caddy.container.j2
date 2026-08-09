@@ -28,11 +28,21 @@ Volume={{ ssd_mountpoint }}/appdata/caddy/healthcheck.sh:/usr/local/bin/healthch
 # AutoUpdate=registry ci-dessus n'a aucun filet de sécurité en cas d'image
 # cassée (voir roles/caddy/templates/healthcheck.sh.j2 pour le détail du
 # choix technique). bash plutôt que sh : nécessaire pour /dev/tcp.
-HealthCmd=bash /usr/local/bin/healthcheck.sh
+HealthCmd=sh /usr/local/bin/healthcheck.sh
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3
 HealthStartPeriod=10s
+# Sans Notify=healthy, ce HealthCmd ne sert QUE de l'affichage (podman ps) :
+# systemd considère le service "démarré" dès que conmon lance le process,
+# pas quand le healthcheck passe au vert. C'est Notify=healthy qui relie
+# vraiment ce HealthCmd au rollback automatique de podman-auto-update.timer
+# décrit plus haut. HealthOnFailure=kill : si Caddy devient unhealthy en
+# cours de route (pas seulement au moment d'un auto-update), systemd le
+# relance via Restart=on-failure ci-dessous plutôt que de laisser tourner
+# un reverse-proxy cassé indéfiniment.
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

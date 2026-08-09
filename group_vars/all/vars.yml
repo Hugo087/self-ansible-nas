@@ -2,10 +2,6 @@
 # Version du kernel longterm (voir https://copr.fedorainfracloud.org/coprs/kwizart/)
 # Vérifie sur le forum Fedora Discussion quelle branche est actuellement recommandée
 # avant de lancer le playbook sur une nouvelle version de Fedora.
-# Nombre de tentatives d'authentification SSH autorisées avant fermeture
-# de connexion (voir roles/ssh_hardening).
-ssh_hardening_max_auth_tries: 3
-
 kernel_longterm_version: "6.18"
 kernel_longterm_copr: "kwizart/kernel-longterm-{{ kernel_longterm_version }}"
 # Liste passée telle quelle à exclude= dans /etc/dnf/dnf.conf. À adapter
@@ -20,12 +16,6 @@ zfs_release_rpm: "https://zfsonlinux.org/fedora/zfs-release-3-1.fc{{ ansible_fac
 
 # Nom du pool ZFS existant à importer
 zfs_pool_name: "monpool"
-
-# Adresse mail pour les alertes ZED (dégradation de pool, disque HS...) et le
-# scrub mensuel automatique. Laisse vide pour désactiver l'envoi de mail (le
-# scrub tourne quand même, seule la notification est concernée) : suppose un
-# MTA local déjà configuré (postfix/msmtp) pour que le mail parte réellement.
-zfs_zed_email: ""
 
 # SSD applicatif (configs Podman, appdata des containers)
 ssd_device: "/dev/disk/by-id/virtio-ata-CT120BX500SSD1_1"  # ata-CT120BX500SSD1_1832E1519645
@@ -78,7 +68,7 @@ beszel_hub_port: 8090
 # son interface web). Vide tant que le bootstrap manuel décrit dans le
 # README n'a pas été fait : les agents resteront déconnectés jusque-là,
 # ce qui est normal pour un premier déploiement.
-beszel_hub_key: ""
+beszel_hub_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIINasnTfqw3ZhW+VstUqGlbVt7nO388o5CbgQQU9Z7Wc"
 
 # Un port distinct par agent : ils tournent tous en Network=host (comme
 # Caddy, pour atteindre 127.0.0.1:{{ beszel_hub_port }} publié sous un
@@ -161,7 +151,7 @@ immich_db_password: "{{ vault_immich_db_password }}"
 pds_hostname: "pds.example.com"
 # Adresse de contact transmise à Let's Encrypt pour ce domaine (expiration,
 # changements de CGU...) - pas un secret, aucun besoin du vault.
-pds_admin_email: "admin@example.com"
+pds_admin_email: "hugo097@hotmail.fr"
 # Suffixe utilisé pour les handles type <compte>.{{ pds_hostname }} (le
 # point de tête compte, voir PDS_SERVICE_HANDLE_DOMAINS dans
 # roles/pds/templates/pds.env.j2). Ça ne fonctionne que si tu ajoutes AUSSI
@@ -203,8 +193,7 @@ samba_valid_users:
 # sur Samba 2.2.x mais est corrigé depuis longtemps).
 trusted_networks:
   - "192.168.0.0/16"
-  - "172.16.0.0/12"
-  - "10.0.0.0/8"
+  - "10.10.0.0/24"
 
 # --- fail2ban ---
 # Plages privées à ne jamais bannir : évite qu'une personne du foyer qui se

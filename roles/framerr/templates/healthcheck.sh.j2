@@ -1,0 +1,13 @@
+#!/bin/sh
+# Généré par Ansible (roles/framerr/templates/healthcheck.sh.j2)
+#
+# HealthCmd pour framerr.container.j2. Comme pour Seerr : pas d'endpoint de
+# statut non authentifié documenté pour ce projet jeune (0.x.x, voir
+# https://github.com/Framerrr/Framerr), donc simple test de connexion TCP
+# sur le port applicatif - node est déjà présent dans l'image (npm/Alpine,
+# voir la doc d'installation du projet), pas besoin de curl/wget.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run framerr
+#   systemctl --user status framerr.service
+node -e "require('net').createConnection(3001, '127.0.0.1').on('connect', function() { process.exit(0); }).on('error', function() { process.exit(1); });"

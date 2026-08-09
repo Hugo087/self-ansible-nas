@@ -19,6 +19,17 @@ UserNS=keep-id
 EnvironmentFile={{ ssd_mountpoint }}/appdata/framerr/framerr.env
 
 Volume={{ ssd_mountpoint }}/appdata/framerr/config:/config:Z
+Volume={{ ssd_mountpoint }}/appdata/framerr/healthcheck.sh:/usr/local/bin/healthcheck.sh:Z,ro
+
+# Voir roles/framerr/templates/healthcheck.sh.j2 pour le détail du choix
+# technique (test TCP, pas d'endpoint applicatif documenté).
+HealthCmd=sh /usr/local/bin/healthcheck.sh
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=30s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

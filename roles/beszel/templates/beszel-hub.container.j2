@@ -20,7 +20,13 @@ Volume={{ ssd_mountpoint }}/appdata/beszel/data:/beszel_data:Z
 User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
 
-HealthCmd=/beszel health --url http://localhost:8090
+HealthCmd=CMD /beszel health --url http://127.0.0.1:8090
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=15s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=always

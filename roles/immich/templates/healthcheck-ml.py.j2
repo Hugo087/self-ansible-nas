@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# Généré par Ansible (roles/immich/templates/healthcheck-ml.py.j2)
+#
+# HealthCmd pour immich-machine-learning.container.j2. Script Python plutôt
+# que shell : ce service est lui-même du Python (gunicorn/uvicorn), donc
+# python3 est garanti présent - contrairement à curl/wget, dont l'absence a
+# été rapportée sur cette image dans des rapports de bug upstream (voir
+# https://github.com/immich-app/immich/issues/27228, "wget: executable
+# file not found"). Simple test de connexion TCP sur le port interne (pas
+# de vraie requête HTTP) : suffisant pour détecter un process planté / une
+# image cassée, mais ne vérifie pas que les modèles ML sont chargés - le
+# HealthStartPeriod généreux ci-dessous (téléchargement des modèles au
+# premier lancement) compense en partie.
+#
+# À vérifier après le premier déploiement :
+#   podman healthcheck run immich-machine-learning
+#   systemctl --user status immich-machine-learning.service
+import socket
+import sys
+
+try:
+    socket.create_connection(("127.0.0.1", 3003), timeout=2).close()
+except OSError:
+    sys.exit(1)
+sys.exit(0)

@@ -6,11 +6,10 @@
 # devrait pas être possible à essayer en premier lieu si le mot de passe
 # n'est de toute façon jamais accepté.
 #
-# GARDE-FOU obligatoire avant de couper l'auth par mot de passe : ce rôle
-# vérifie qu'une clé publique est déjà enregistrée pour l'utilisateur qui
-# exécute ce playbook ({{ ansible_user }}), sinon désactiver
-# PasswordAuthentication couperait l'accès SSH pour de bon - ce genre de
-# NAS n'a en général pas de console physique/IPMI de secours.
+# Si aucune clé SSH n'existe localement, une clé Ed25519 est générée
+# automatiquement puis déployée sur le serveur avant de désactiver
+# PasswordAuthentication - ainsi on ne risque pas de se verrouiller
+# dehors (ce NAS n'a en général pas de console physique/IPMI de secours).
 
 - name: Récupérer le home de {{ ansible_user }}
   ansible.builtin.command:
@@ -22,22 +21,55 @@
   ansible.builtin.set_fact:
     ssh_hardening_authorized_keys_path: "{{ ssh_hardening_user_check.stdout.split(':')[5] }}/.ssh/authorized_keys"
 
-- name: Vérifier que authorized_keys existe et n'est pas vide
-  ansible.builtin.stat:
-    path: "{{ ssh_hardening_authorized_keys_path }}"
-  register: ssh_hardening_authorized_keys_stat
+# --- Génération automatique de clé SSH locale (Ed25519) si absente ---
+# On utilise lookup('env', 'HOME') pour obtenir le vrai home de l'utilisateur
+# qui lance Ansible sur la machine locale (et non ansible_env.HOME qui peut
+# pointer vers /root si le playbook tourne avec sudo côté distant).
 
-- name: Stopper si aucune clé publique n'est enregistrée (évite de te verrouiller dehors)
-  ansible.builtin.fail:
-    msg: >-
-      Aucune clé publique trouvée dans {{ ssh_hardening_authorized_keys_path }}
-      pour {{ ansible_user }}. Ajoute ta clé publique (ssh-copy-id, ou le
-      module ansible.posix.authorized_key) et relance ce rôle avant de
-      désactiver PasswordAuthentication - sinon tu perds l'accès SSH à ce
-      NAS au prochain redémarrage de sshd.
-  when: >
-    not ssh_hardening_authorized_keys_stat.stat.exists or
-    ssh_hardening_authorized_keys_stat.stat.size == 0
+- name: Déterminer le home local de l'utilisateur Ansible
+  ansible.builtin.set_fact:
+    ssh_hardening_local_home: "{{ lookup('env', 'HOME') }}"
+
+- name: Vérifier si une clé SSH Ed25519 existe localement
+  ansible.builtin.stat:
+    path: "{{ ssh_hardening_local_home }}/.ssh/id_ed25519"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  register: ssh_hardening_local_key_stat
+
+- name: Générer une clé SSH Ed25519 locale (sans passphrase)
+  ansible.builtin.command:
+    cmd: "ssh-keygen -t ed25519 -f {{ ssh_hardening_local_home }}/.ssh/id_ed25519 -N '' -q"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  changed_when: true
+  when: not ssh_hardening_local_key_stat.stat.exists
+
+- name: Lire la clé publique locale
+  ansible.builtin.slurp:
+    src: "{{ ssh_hardening_local_home }}/.ssh/id_ed25519.pub"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  register: ssh_hardening_public_key
+
+# --- Déploiement de la clé sur le serveur ---
+
+- name: Créer le dossier .ssh sur le serveur
+  ansible.builtin.file:
+    path: "{{ ssh_hardening_user_check.stdout.split(':')[5] }}/.ssh"
+    state: directory
+    mode: "0700"
+
+- name: Autoriser la connexion avec la clé générée
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    key: "{{ ssh_hardening_public_key.content | b64decode }}"
+
+# --- Durcissement de sshd_config ---
 
 # validate: "sshd -t -f %s" fait tester la syntaxe par sshd lui-même sur
 # le fichier temporaire AVANT remplacement - une ligne mal formée ne casse
@@ -60,7 +92,7 @@
     - regexp: '^#?\s*PubkeyAuthentication'
       line: 'PubkeyAuthentication yes'
     - regexp: '^#?\s*MaxAuthTries'
-      line: 'MaxAuthTries {{ ssh_hardening_max_auth_tries }}'
+      line: 'MaxAuthTries 3'
     - regexp: '^#?\s*X11Forwarding'
       line: 'X11Forwarding no'
   loop_control:

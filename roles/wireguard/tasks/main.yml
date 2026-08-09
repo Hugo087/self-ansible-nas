@@ -14,16 +14,30 @@
 # chemin de déploiement dédié ci-dessous plutôt que l'include habituel de
 # ../../quadlet_common/tasks/deploy.yml.
 
-- name: Charger le module wireguard maintenant, et le rendre persistant au boot
-  # persistent: present écrit /etc/modules-load.d/wireguard.conf - sans ça,
-  # SYS_MODULE serait nécessaire côté container pour que le module se
-  # charge tout seul au premier démarrage de wg-easy après un reboot. Le
-  # précharger ici une bonne fois pour toutes permet de ne JAMAIS accorder
-  # cette capability au container (voir wg-easy.container.j2).
+- name: Modules netfilter requis pour le MASQUERADE de wg-easy
   community.general.modprobe:
-    name: wireguard
+    name: "{{ item }}"
     state: present
     persistent: present
+  loop:
+    - wireguard
+    - ip_tables
+    - iptable_nat
+    - iptable_filter
+    - ip6_tables
+    - ip6table_nat
+    - ip6table_filter
+
+- name: Sysctl requis pour le forwarding WireGuard
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-wireguard.conf
+    state: present
+    reload: true
+  loop:
+    - { name: net.ipv4.ip_forward, value: "1" }
+    - { name: net.ipv4.conf.all.src_valid_mark, value: "1" }
 
 - name: Créer le dossier appdata de wg-easy
   # 0700 (pas 0750 comme les autres rôles) : ce dossier contient les clés
@@ -36,19 +50,6 @@
     owner: root
     group: root
     mode: "0700"
-
-- name: Déployer le fichier d'environnement (secret, 0600) de wg-easy
-  # no_log: true : ce fichier contient PASSWORD_HASH (vault). Même
-  # raisonnement que quadlet_common/tasks/deploy.yml pour les autres rôles -
-  # sans no_log, un `--diff` afficherait le hash en clair dans le terminal.
-  ansible.builtin.template:
-    src: wg-easy.env.j2
-    dest: "{{ ssd_mountpoint }}/appdata/wireguard/wg-easy.env"
-    owner: root
-    group: root
-    mode: "0600"
-  register: wireguard_env_deployed
-  no_log: true
 
 - name: Créer le dossier des quadlets système
   ansible.builtin.file:

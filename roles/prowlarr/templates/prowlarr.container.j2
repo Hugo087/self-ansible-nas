@@ -11,12 +11,18 @@ Network=media.network
 PublishPort=127.0.0.1:9696:9696
 
 Environment=TZ=Europe/Paris
-Environment=PUID={{ quadlet_uid }}
-Environment=PGID={{ quadlet_gid }}
-
-UserNS=keep-id
 
 Volume={{ ssd_mountpoint }}/appdata/prowlarr/config:/config:Z
+
+# /ping : endpoint dédié aux healthchecks, non authentifié, commun à toute
+# la famille Servarr - voir le commentaire équivalent dans sonarr.container.j2.
+HealthCmd=wget --no-verbose --tries=1 --spider http://localhost:9696/ping || exit 1
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
 
 [Service]
 Restart=on-failure

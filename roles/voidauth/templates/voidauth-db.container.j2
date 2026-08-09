@@ -17,6 +17,21 @@ Network=sso.network
 EnvironmentFile={{ ssd_mountpoint }}/appdata/voidauth/voidauth-db.env
 Volume=voidauth-db-vol:/var/lib/postgresql:Z
 HealthCmd=pg_isready -U postgres -h localhost
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=40s
+# Notify=healthy : relie ce HealthCmd au rollback de podman-auto-update, ET
+# corrige un effet de bord utile - voidauth.service (After=/Requires=
+# voidauth-db.service) n'est désormais considéré comme pouvant démarrer
+# qu'une fois Postgres réellement prêt à accepter des connexions, pas
+# juste une fois le process lancé.
+# Pas de HealthOnFailure=kill ici (contrairement à Caddy/PDS/VoidAuth) :
+# sur une base de données, mieux vaut laisser une pgbouncer/reconnexion
+# applicative gérer un pg_isready ponctuellement en échec (charge, i/o...)
+# plutôt que de forcer un redémarrage automatique qui pourrait couper des
+# transactions en cours.
+Notify=healthy
 
 [Service]
 Restart=always
