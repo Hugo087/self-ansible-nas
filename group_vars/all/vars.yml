@@ -25,25 +25,31 @@ hdd_mountpoint: "/mnt/HDD"
 
 containers_users:
   - name: svc-proxy
+    uid: 9001
     extra_groups: []
     subuid_start: 200000
   - name: svc-sso
+    uid: 9002
     extra_groups: []
     subuid_start: 300000
   - name: svc-media
+    uid: 9003
     extra_groups:
       - video
       - render        # transcodage Jellyfin
     subuid_start: 400000
   - name: svc-photos
+    uid: 9004
     extra_groups: []
     subuid_start: 500000
     # Utilisé par le rôle immich (voir plus bas).
   - name: svc-monitor
+    uid: 9005
     extra_groups: []
     subuid_start: 600000
     # Utilisé par le rôle beszel (hub de monitoring, voir plus bas).
   - name: svc-pds
+    uid: 9006
     extra_groups: []
     subuid_start: 700000
     # Utilisé par le rôle pds (Bluesky Personal Data Server, voir plus bas).

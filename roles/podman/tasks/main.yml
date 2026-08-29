@@ -27,9 +27,42 @@
     state: true
     persistent: true
 
+# Défense en profondeur avant la création des comptes : uid dans
+# containers_users (group_vars/all/vars.yml) est censé être libre sur
+# TOUTE machine où ce playbook tourne. Si un paquet système ou un compte
+# créé manuellement a déjà pris cet UID sur cette machine précise, le
+# useradd sous-jacent de la tâche suivante échouerait avec un message
+# générique ("UID ... is not unique") sans dire quoi corriger ni où. On
+# préfère échouer ici avec un message qui pointe directement vers la
+# variable à changer.
+- name: Vérifier qu'aucun uid de containers_users n'est déjà pris par un autre compte
+  ansible.builtin.command:
+    cmd: "getent passwd {{ item.uid }}"
+  register: podman_uid_collision_check
+  changed_when: false
+  failed_when: false
+  loop: "{{ containers_users }}"
+  loop_control:
+    label: "{{ item.name }} (uid {{ item.uid }})"
+
+- name: Échouer si un uid de containers_users est déjà attribué à un autre compte
+  ansible.builtin.fail:
+    msg: >-
+      L'uid {{ item.item.uid }} prévu pour {{ item.item.name }}
+      (containers_users, group_vars/all/vars.yml) est déjà utilisé sur
+      cette machine par le compte "{{ item.stdout.split(':')[0] }}".
+      Choisis un autre uid pour {{ item.item.name }} et relance le rôle.
+  loop: "{{ podman_uid_collision_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: >-
+    item.rc == 0 and
+    item.stdout.split(':')[0] != item.item.name
+
 - name: Créer chaque utilisateur système dédié à un groupe de pods
   ansible.builtin.user:
     name: "{{ item.name }}"
+    uid: "{{ item.uid }}"
     system: true
     shell: /usr/sbin/nologin
     home: "/home/{{ item.name }}"
