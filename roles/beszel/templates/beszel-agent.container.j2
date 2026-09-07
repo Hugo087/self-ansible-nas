@@ -31,8 +31,8 @@ EnvironmentFile=/home/{{ quadlet_user }}/.config/beszel-agent.env
 # l'exemple officiel Beszel ne le met pas, à retirer si le premier
 # lancement échoue avec une erreur SELinux (`ausearch -m avc -ts recent`)
 # plutôt qu'à se connecter normalement.
-Volume=/run/user/{{ quadlet_uid }}/podman/podman.sock:/run/user/{{ quadlet_uid }}/podman/podman.sock:ro,Z
-
+Volume=%t/podman/podman.sock:/run/user/{{ quadlet_uid }}/podman/podman.sock:ro
+SecurityLabelDisable=true
 User={{ quadlet_uid }}:{{ quadlet_gid }}
 UserNS=keep-id
 

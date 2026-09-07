@@ -38,38 +38,6 @@
         name: beszel-hub.container
         service: beszel-hub.service
 
-# Requis pour que /run/user/<uid>/podman/podman.sock existe : par défaut,
-# ce projet n'utilise que la CLI podman (podman-auto-update, system
-# migrate...), jamais l'API REST. Les agents Beszel en ont besoin pour
-# lire l'état des containers de chaque utilisateur.
-- name: Récupérer l'UID de chaque utilisateur (pour activer podman.socket --user)
-  # Même remarque que dans roles/podman/tasks/main.yml : getent écrase
-  # ansible_facts.getent_passwd à chaque appel, il faut plusieurs UID en
-  # mémoire simultanément ici (une boucle de systemd --user par utilisateur),
-  # donc command + register plutôt que getent.
-  ansible.builtin.command:
-    cmd: "id -u {{ item.name }}"
-  register: beszel_containers_users_uids
-  changed_when: false
-  loop: "{{ containers_users }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Activer et démarrer podman.socket pour chaque utilisateur
-  become: true
-  become_user: "{{ item.item.name }}"
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ item.stdout | trim }}"
-    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ item.stdout | trim }}/bus"
-  ansible.builtin.systemd:
-    name: podman.socket
-    scope: user
-    state: started
-    enabled: true
-  loop: "{{ beszel_containers_users_uids.results }}"
-  loop_control:
-    label: "{{ item.item.name }}"
-
 # Boucle sur l'include de quadlet_common (via `loop:` directement sur
 # include_tasks - premier usage de ce pattern dans le projet, les autres
 # rôles n'ont qu'une seule instance à déployer). Ça fonctionne car tout ce

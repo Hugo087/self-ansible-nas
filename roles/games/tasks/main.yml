@@ -1,0 +1,11 @@
+- name: Déployer portainer
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ games_user }}"
+    quadlet_name: "portainer"
+    quadlet_appdata_dirs:
+      - data
+    quadlet_units:
+      - src: portainer.container.j2
+        name: portainer.container
+        service: portainer.service

@@ -1,0 +1,18 @@
+[Unit]
+Description=Portainer CE
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=docker.io/portainer/portainer-ce:lts
+ContainerName=portainer
+PublishPort=9443:9443
+Volume=%t/podman/podman.sock:/var/run/docker.sock
+Volume={{ ssd_mountpoint }}/appdata/portainer/data:/data:Z
+SecurityLabelDisable=true
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -53,6 +53,10 @@ containers_users:
     extra_groups: []
     subuid_start: 700000
     # Utilisé par le rôle pds (Bluesky Personal Data Server, voir plus bas).
+  - name: svc-games
+    uid: 9007
+    extra_groups: []
+    subuid_start: 800000
 
 proxy_user: svc-proxy
 sso_user: svc-sso
@@ -60,6 +64,7 @@ media_user: svc-media
 photos_user: svc-photos
 monitor_user: svc-monitor
 pds_user: svc-pds
+games_user: svc-games
 
 # --- Beszel (monitoring, voir roles/beszel) ---
 #
@@ -89,6 +94,7 @@ beszel_agent_listen_ports:
   svc-photos: 45884
   svc-monitor: 45885
   svc-pds: 45886
+  svc-games: 45887
 
 # --- WireGuard (wg-easy, voir roles/wireguard) ---
 # Seul composant de tout ce projet qui tourne réellement en root : wg-easy

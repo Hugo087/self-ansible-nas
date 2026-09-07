@@ -163,7 +163,6 @@ seerr.{{ public_domain }} {
     import access_log
     import security_headers
     import frame_ancestors_framerr
-    import voidauth_auth
     reverse_proxy 127.0.0.1:5055
 }
 
@@ -244,8 +243,6 @@ framerr.{{ public_domain }} {
     import access_log
     import security_headers
     import frame_ancestors_none
-    import lan_only
-    import voidauth_auth
     reverse_proxy 127.0.0.1:3001
 }
 
@@ -259,7 +256,6 @@ monitor.{{ public_domain }} {
     import security_headers
     import frame_ancestors_none
     import lan_only
-    import voidauth_auth
     reverse_proxy 127.0.0.1:{{ beszel_hub_port }}
 }
 
@@ -302,6 +298,18 @@ vpn.{{ public_domain }} {
     import security_headers
     import frame_ancestors_none
     import lan_only
-    import voidauth_auth
     reverse_proxy 127.0.0.1:{{ wg_easy_ui_port }}
+}
+
+games.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import frame_ancestors_none
+    import lan_only
+    reverse_proxy 127.0.0.1:9443 {
+    transport http {
+            tls_insecure_skip_verify
+        }
+    }
 }
