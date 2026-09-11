@@ -9,6 +9,7 @@
     owner: "{{ photos_user }}"
     group: "{{ photos_user }}"
     mode: "0750"
+    recurse: true
 
 # Créé explicitement ici, AVANT le include quadlet_common ci-dessous : les
 # quadlets immich-server.container et immich-machine-learning.container

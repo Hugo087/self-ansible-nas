@@ -19,7 +19,7 @@ zfs_pool_name: "monpool"
 
 # SSD applicatif (configs Podman, appdata des containers)
 ssd_device: "/dev/disk/by-id/virtio-ata-CT120BX500SSD1_1"  # ata-CT120BX500SSD1_1832E1519645
-ssd_fstype: ext4
+ssd_fstype: btrfs
 ssd_mountpoint: "/mnt/SSD"
 hdd_mountpoint: "/mnt/HDD"
 

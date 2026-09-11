@@ -15,6 +15,7 @@
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
     mode: "02775"
+    recurse: true
 
 - name: Créer le sous-dossier films dans le pool ZFS (si absent)
   ansible.builtin.file:
@@ -23,6 +24,7 @@
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
     mode: "02775"
+    recurse: true
 
 - name: Créer le sous-dossier de téléchargement dans le pool ZFS (si absent)
   ansible.builtin.file:
@@ -31,6 +33,7 @@
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
     mode: "02775"
+    recurse: true
 
 - name: Déployer le réseau Podman partagé de la stack média
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
