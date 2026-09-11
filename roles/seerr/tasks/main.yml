@@ -18,6 +18,7 @@
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
     mode: "0750"
+    recurse: true
 
 - name: Déployer le script de healthcheck de Seerr
   ansible.builtin.template:

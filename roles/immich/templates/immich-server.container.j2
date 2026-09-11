@@ -27,7 +27,7 @@ UserNS=keep-id
 # médiathèques Jellyfin - pas sur le SSD applicatif. :Z (privé) et pas :z
 # (partagé) : contrairement à tvshows/movies, ce dossier n'est touché par
 # aucun autre conteneur.
-Volume={{ immich_upload_dir }}:/data:Z
+Volume={{ hdd_mountpoint }}/photos:/data:z
 Volume=/etc/localtime:/etc/localtime:ro
 Volume={{ ssd_mountpoint }}/appdata/immich/healthcheck-server.sh:/usr/local/bin/healthcheck.sh:Z,ro
 

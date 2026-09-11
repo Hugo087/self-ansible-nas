@@ -37,6 +37,8 @@
       tags: [prowlarr, media]
     - role: seerr
       tags: [seerr, media]
+    - role: maintainerr
+      tags: [maintainerr, media]
     - role: qbittorrent
       tags: [qbittorrent, media]
     - role: framerr
@@ -51,5 +53,7 @@
       tags: [wireguard, vpn]
     - role: fail2ban
       tags: [fail2ban]
+    - role: backup
+      tags: [backup]
     - role: htpc
       tags: [htpc]

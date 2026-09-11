@@ -1,0 +1,126 @@
+---
+- name: Installer btrbk
+  ansible.builtin.dnf:
+    name: btrbk
+    state: present
+  become: true
+
+- name: Créer le dossier de snapshots sur le SSD
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/.snapshots"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+    recurse: true
+  become: true
+
+- name: Créer le dossier de backup sur le HDD
+  ansible.builtin.file:
+    path: "{{ hdd_mountpoint }}/backup"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+    recurse: true
+  become: true
+
+- name: Déployer la configuration btrbk
+  ansible.builtin.template:
+    src: btrbk.conf.j2
+    dest: /etc/btrbk/btrbk.conf
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  notify: Vérifier la config btrbk (dry-run)
+
+- name: Activer et démarrer le timer btrbk
+  ansible.builtin.systemd:
+    name: btrbk.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: Créer le dossier de backup sur le HDD
+  ansible.builtin.file:
+    path: "{{ hdd_mountpoint }}/documents"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: "0700"
+    recurse: true
+  become: true
+
+- name: Créer le secret Podman pour le mot de passe Proton
+  containers.podman.podman_secret:
+    name: proton_password_secret
+    state: present
+    data: "{{ vault_proton_password }}"
+  become: true
+  become_user: "{{ backup_user }}"
+
+- name: Créer le dossier appdata de rclone
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/rclone-{{ item.name }}"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: "0750"
+    recurse: true
+  loop: "{{ rclone_syncs }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Déployer Rclone (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ backup_user }}"
+    quadlet_name: "rclone-{{ sync_item.name }}"
+    quadlet_env_files:
+      - src: rclone.conf.j2
+        dest: "{{ ssd_mountpoint }}/appdata/rclone-{{ sync_item.name }}/config/rclone.conf"
+    quadlet_units:
+      - src: rclone.container.j2
+        name: rclone-{{ sync_item.name }}.container
+        service: rclone-{{ sync_item.name }}.service
+  loop: "{{ rclone_syncs }}"
+  loop_control:
+    loop_var: sync_item
+    label: "{{ sync_item.name }}"
+
+- name: Déployer les timers Quadlet Rclone
+  ansible.builtin.template:
+    src: templates/rclone.timer.j2
+    dest: "/home/{{ backup_user }}/.config/systemd/user/rclone-{{ item.name }}.timer"
+    mode: "0644"
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+  become: true
+  loop: "{{ rclone_syncs }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Recharger systemd utilisateur
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ backup_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][backup_user][1] }}"
+
+- name: Activer et démarrer les timers
+  ansible.builtin.systemd:
+    name: "rclone-{{ item.name }}.timer"
+    state: started
+    enabled: true
+    scope: user
+  become: true
+  become_user: "{{ backup_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][backup_user][1] }}"
+  loop: "{{ rclone_syncs }}"
+  loop_control:
+    label: "{{ item.name }}"

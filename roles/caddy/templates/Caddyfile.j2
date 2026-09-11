@@ -220,6 +220,16 @@ prowlarr.{{ public_domain }} {
     reverse_proxy 127.0.0.1:9696
 }
 
+maintainerr.{{ public_domain }} {
+    tls internal
+    import access_log
+    import security_headers
+    import frame_ancestors_none
+    import lan_only
+    import voidauth_auth
+    reverse_proxy 127.0.0.1:6246
+}
+
 qbittorrent.{{ public_domain }} {
     tls internal
     import access_log
@@ -308,7 +318,7 @@ games.{{ public_domain }} {
     import frame_ancestors_none
     import lan_only
     reverse_proxy 127.0.0.1:9443 {
-    transport http {
+        transport http {
             tls_insecure_skip_verify
         }
     }

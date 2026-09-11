@@ -1,0 +1,10 @@
+---
+- name: Déployer Maintainerr (appdata, quadlet, service)
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "maintainerr"
+    quadlet_units:
+      - src: maintainerr.container.j2
+        name: maintainerr.container
+        service: maintainerr.service

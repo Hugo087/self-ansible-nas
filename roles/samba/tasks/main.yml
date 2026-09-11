@@ -25,6 +25,7 @@
     owner: "{{ samba_valid_users[0] }}"
     group: "{{ samba_valid_users[0] }}"
     mode: "0750"
+    recurse: true
 
 - name: Déclarer le contexte SELinux samba_share_t sur les dossiers exposés
   community.general.sefcontext:

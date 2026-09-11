@@ -57,6 +57,12 @@ containers_users:
     uid: 9007
     extra_groups: []
     subuid_start: 800000
+  - name: svc-backup
+    uid: 9008
+    extra_groups:
+      - svc-photos
+    subuid_start: 900000
+
 
 proxy_user: svc-proxy
 sso_user: svc-sso
@@ -65,6 +71,7 @@ photos_user: svc-photos
 monitor_user: svc-monitor
 pds_user: svc-pds
 games_user: svc-games
+backup_user: svc-backup
 
 # --- Beszel (monitoring, voir roles/beszel) ---
 #
@@ -95,6 +102,7 @@ beszel_agent_listen_ports:
   svc-monitor: 45885
   svc-pds: 45886
   svc-games: 45887
+  svc-backup: 45888
 
 # --- WireGuard (wg-easy, voir roles/wireguard) ---
 # Seul composant de tout ce projet qui tourne réellement en root : wg-easy
@@ -111,7 +119,7 @@ wg_easy_ui_port: 51821
 # les clients WireGuard doivent contacter depuis internet. Pense à rediriger
 # {{ wg_easy_port }}/udp (uniquement ce port, jamais {{ wg_easy_ui_port }})
 # vers ce NAS sur ton routeur - pas automatisable depuis ce playbook.
-wg_easy_host: "vpn.example.com"
+wg_easy_host: "vpn.chillandplay.internal"
 # Résolveur poussé aux clients une fois connectés au tunnel. Idéalement un
 # DNS qui résout aussi {{ public_domain }} (Pi-hole/AdGuard local, si tu en
 # as un) pour que sonarr.{{ public_domain }} etc. fonctionnent depuis le
@@ -160,7 +168,7 @@ immich_db_password: "{{ vault_immich_db_password }}"
 # ports 80/tcp et 443/tcp de ce NAS sur ton routeur (déjà ouverts côté
 # firewalld par le rôle caddy, qui sert aussi ce vhost - voir
 # roles/caddy/templates/Caddyfile.j2 et le README, section PDS).
-pds_hostname: "pds.example.com"
+pds_hostname: "pds.chillandplay.internal"
 # Adresse de contact transmise à Let's Encrypt pour ce domaine (expiration,
 # changements de CGU...) - pas un secret, aucun besoin du vault.
 pds_admin_email: "hugo097@hotmail.fr"
@@ -225,3 +233,13 @@ rpmfusion_free_release_rpm: "https://download1.rpmfusion.org/free/fedora/rpmfusi
 # communautaires apparaissent/disparaissent avec le temps, contrairement à
 # kernel_longterm_copr qui est bien établi.
 moonlight_copr: "ferdiu/moonlight"
+
+rclone_syncs:
+  - name: photos
+    local_path: "{{ immich_upload_dir }}"
+    command: "copy {{ immich_upload_dir }} proton:Photos"
+    schedule: "*-*-* 03:00:00"
+  - name: documents
+    local_path: "{{ hdd_mountpoint }}/documents"
+    command: "copy proton:Documents {{ hdd_mountpoint }}/documents"
+    schedule: "*-*-* 02:00:00"

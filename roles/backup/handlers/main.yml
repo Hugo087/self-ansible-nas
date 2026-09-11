@@ -1,0 +1,5 @@
+---
+- name: Vérifier la config btrbk (dry-run)
+  ansible.builtin.command: btrbk dryrun -c /etc/btrbk/btrbk.conf
+  become: true
+  changed_when: false

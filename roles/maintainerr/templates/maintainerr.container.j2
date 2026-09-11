@@ -1,0 +1,21 @@
+[Unit]
+Description=Maintainerr
+
+[Container]
+Image=ghcr.io/maintainerr/maintainerr:latest
+ContainerName=maintainerr
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+Volume={{ ssd_mountpoint }}/appdata/maintainerr/config:/opt/data:Z
+Volume={{ hdd_mountpoint }}/media/movies:/movies:z
+Volume={{ hdd_mountpoint }}/media/tvshows:/tv:z
+Environment=TZ=Europe/Paris
+PublishPort=6246:6246
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

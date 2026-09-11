@@ -36,6 +36,7 @@
     state: directory
     owner: "{{ media_user }}"
     group: "{{ media_user }}"
+    recurse: true
     mode: "0750"
 
 - name: Déployer le script de healthcheck de Glances

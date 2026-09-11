@@ -8,7 +8,7 @@
     state: directory
     owner: "{{ photos_user }}"
     group: "{{ photos_user }}"
-    mode: "0750"
+    mode: "0770"
     recurse: true
 
 # Créé explicitement ici, AVANT le include quadlet_common ci-dessous : les
@@ -25,6 +25,7 @@
     state: directory
     owner: "{{ photos_user }}"
     group: "{{ photos_user }}"
+    recurse: true
     mode: "0750"
 
 - name: Déployer le script de healthcheck d'immich-server

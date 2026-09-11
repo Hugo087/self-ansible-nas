@@ -92,6 +92,7 @@
     path: "/home/{{ item.name }}"
     state: directory
     mode: "0750"
+    recurse: true
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
@@ -163,6 +164,7 @@
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
     mode: "0700"
+    recurse: true
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"
@@ -192,6 +194,7 @@
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
     mode: "0700"
+    recurse: true
   loop: "{{ containers_users }}"
   loop_control:
     label: "{{ item.name }}"

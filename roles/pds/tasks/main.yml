@@ -29,6 +29,7 @@
     owner: "{{ pds_user }}"
     group: "{{ pds_user }}"
     mode: "0750"
+    recurse: true
 
 - name: Déployer le script de healthcheck du PDS
   ansible.builtin.template:

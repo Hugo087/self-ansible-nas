@@ -37,6 +37,7 @@
     state: directory
     owner: "{{ proxy_user }}"
     group: "{{ proxy_user }}"
+    recurse: true
     mode: "0750"
 
 - name: Déployer le Caddyfile

@@ -17,6 +17,7 @@
     owner: "{{ sso_user }}"
     group: "{{ sso_user }}"
     mode: "0750"
+    recurse: true
 
 - name: Déployer VoidAuth (appdata, réseau, quadlets, services)
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml

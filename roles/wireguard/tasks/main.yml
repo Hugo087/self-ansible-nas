@@ -50,6 +50,7 @@
     owner: root
     group: root
     mode: "0700"
+    recurse: true
 
 - name: Créer le dossier des quadlets système
   ansible.builtin.file:

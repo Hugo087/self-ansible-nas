@@ -1,0 +1,19 @@
+[Unit]
+Description=Rclone Sync Proton Drive - {{ sync_item.name }}
+After=network-online.target
+
+[Container]
+Image=docker.io/rclone/rclone:latest
+Exec={{ sync_item.command }}
+Volume={{ ssd_mountpoint }}/appdata/rclone-{{ sync_item.name }}/config:/config/rclone:Z
+Volume={{ sync_item.local_path }}:/data:z
+Secret=proton_password_secret,type=env,target=RCLONE_CONFIG_PROTON_PASSWORD
+User={{ quadlet_uid }}:{{ quadlet_gid }}
+UserNS=keep-id
+GroupAdd=keep-groups
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
