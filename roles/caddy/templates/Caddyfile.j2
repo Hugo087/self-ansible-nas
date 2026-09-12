@@ -102,6 +102,15 @@
     header Content-Security-Policy "frame-ancestors 'none'"
 }
 
+www.{{ public_domain }} {
+    redir https://framerr.{{ public_domain }}{uri} permanent
+}
+
+{{ public_domain }} {
+    redir https://framerr.{{ public_domain }}{uri} permanent
+}
+
+
 # --- VoidAuth (SSO) ---
 # Doit rester accessible partout où jellyfin/seerr le sont : c'est vers ce
 # domaine que forward_auth redirige les visiteurs non authentifiés. Pas de

@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Planification du rafraîchissement de la blocklist GeoIP
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

@@ -62,7 +62,6 @@
     path: "{{ ssh_hardening_user_check.stdout.split(':')[5] }}/.ssh"
     state: directory
     mode: "0700"
-    recurse: true
 
 - name: Autoriser la connexion avec la clé générée
   ansible.posix.authorized_key:

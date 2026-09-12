@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# {{ ansible_managed }}
+#
+# Rafraîchit l'ipset firewalld geoblock avec les plages
+# CIDR agrégées des pays configurés, récupérées sur ipdeny.com.
+
+set -euo pipefail
+
+IPSET_NAME="geoblock"
+WORK_DIR="/var/lib/geoblock"
+COUNTRIES=({{ geoblock_countries | join(' ') }})
+BASE_URL="http://www.ipdeny.com/ipblocks/data/aggregated"
+
+NEW_FILE="${WORK_DIR}/entries.new"
+OLD_FILE="${WORK_DIR}/entries.old"
+
+mkdir -p "$WORK_DIR"
+: > "$NEW_FILE"
+
+for cc in "${COUNTRIES[@]}"; do
+  if ! curl -fsSL --retry 3 --connect-timeout 10 "${BASE_URL}/${cc}-aggregated.zone" >> "$NEW_FILE"; then
+    echo "WARNING: échec du téléchargement pour le pays '${cc}', ignoré" >&2
+  fi
+done
+
+if [ ! -s "$NEW_FILE" ]; then
+  echo "ERROR: aucune donnée CIDR téléchargée, abandon pour ne pas vider la blocklist existante" >&2
+  exit 1
+fi
+
+sort -u "$NEW_FILE" -o "$NEW_FILE"
+
+# Créer l'ipset s'il n'existe pas encore
+if ! firewall-cmd --permanent --get-ipsets | tr ' ' '\n' | grep -qx "$IPSET_NAME"; then
+  firewall-cmd --permanent \
+    --new-ipset="$IPSET_NAME" \
+    --type=hash:net \
+    --option=family=inet \
+    --option=hashsize=4096 \
+    --option=maxelem=300000
+fi
+
+# Retirer les entrées précédemment chargées (le cas échéant) avant de charger
+# la nouvelle liste, pour que les plages qui ne sont plus attribuées à un
+# pays bloqué soient bien libérées (au lieu de s'accumuler indéfiniment).
+firewall-cmd --permanent --ipset="$IPSET_NAME" --get-entries > "$OLD_FILE" 2>/dev/null || : > "$OLD_FILE"
+if [ -s "$OLD_FILE" ]; then
+  firewall-cmd --permanent --ipset="$IPSET_NAME" --remove-entries-from-file="$OLD_FILE"
+fi
+
+firewall-cmd --permanent --ipset="$IPSET_NAME" --add-entries-from-file="$NEW_FILE"
+firewall-cmd --reload
+
+mv "$NEW_FILE" "$OLD_FILE"
+
+echo "geoblock: ipset '${IPSET_NAME}' updated with $(wc -l < "$OLD_FILE") plages CIDR pour : ${COUNTRIES[*]}"

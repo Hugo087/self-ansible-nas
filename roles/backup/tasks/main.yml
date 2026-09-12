@@ -12,7 +12,6 @@
     owner: root
     group: root
     mode: "0700"
-    recurse: true
   become: true
 
 - name: Créer le dossier de backup sur le HDD

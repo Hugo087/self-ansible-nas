@@ -53,7 +53,6 @@
     owner: "{{ quadlet_user }}"
     group: "{{ quadlet_user }}"
     mode: "0750"
-    recurse: true
   loop: "{{ quadlet_appdata_dirs | default(['config']) }}"
 
 - name: "Réparer le owner/group du contenu déjà existant sous appdata/{{ quadlet_name }}"
@@ -88,7 +87,6 @@
     owner: "{{ quadlet_user }}"
     group: "{{ quadlet_user }}"
     mode: "0750"
-    recurse: true
   loop: "{{ quadlet_env_files | default([]) }}"
   loop_control:
     label: "{{ item.dest | dirname }}"
@@ -119,7 +117,6 @@
     owner: "{{ quadlet_user }}"
     group: "{{ quadlet_user }}"
     mode: "0755"
-    recurse: true
 
 - name: "Déployer le(s) quadlet(s) de {{ quadlet_name }}"
   ansible.builtin.template:

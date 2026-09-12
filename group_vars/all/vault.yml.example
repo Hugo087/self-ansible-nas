@@ -39,20 +39,8 @@ vault_beszel_tokens:
   svc-photos: ""
   svc-monitor: ""
   svc-pds: ""
-
-# --- WireGuard (wg-easy) ---
-# Hash bcrypt du mot de passe de connexion à l'interface web wg-easy - PAS
-# le mot de passe en clair. Génère-le avec l'image elle-même (nécessite que
-# Podman soit déjà installé, donc après avoir lancé --tags podman au moins
-# une fois) :
-#
-#   podman run --rm -it ghcr.io/wg-easy/wg-easy:15 wgpw 'ton_mot_de_passe'
-#
-# Colle le résultat tel quel (guillemets simples inclus si `wgpw` les a
-# affichés) - contrairement aux exemples docker-compose qu'on trouve en
-# ligne, pas besoin de doubler les $ ici (voir
-# roles/wireguard/templates/wg-easy.env.j2 pour le détail).
-vault_wg_easy_password_hash: ""
+  svc-games: ""
+  svc-backup: ""
 
 # --- PDS Bluesky (Personal Data Server) ---
 # Trois secrets à générer UNE SEULE FOIS avant le tout premier déploiement
@@ -80,3 +68,9 @@ vault_pds_admin_password: ""
 # fois avec `openssl rand -hex 32` - la changer après coup rend
 # illisibles les intégrations déjà configurées dans Framerr.
 vault_framerr_secret_encryption_key: ""
+
+vault_proton_username: hugo097
+vault_proton_password: UUCOB-
+vault_proton_client_uid: 
+vault_proton_client_refresh_token: 
+vault_proton_client_salted_key_pass: 

@@ -1,0 +1,72 @@
+---
+- name: Installer les paquets nécessaires
+  ansible.builtin.dnf:
+    name:
+      - firewalld
+      - ipset
+      - curl
+    state: present
+
+- name: S'assurer que firewalld est activé et démarré
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: true
+    state: started
+
+- name: Créer le répertoire de travail pour les listes GeoIP
+  ansible.builtin.file:
+    path: "/var/lib/geoblock"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Déployer le script de mise à jour de la blocklist
+  ansible.builtin.template:
+    src: geo-blocklist-update.sh.j2
+    dest: "/usr/local/sbin/geo-blocklist-update.sh"
+    owner: root
+    group: root
+    mode: "0750"
+
+# On exécute le script une première fois AVANT de créer la rich rule de drop,
+# car firewalld refuse une rich rule pointant vers un ipset qui n'existe pas
+# encore. Le script crée l'ipset et le peuple.
+- name: Exécuter une première fois le script (création + peuplement de l'ipset)
+  ansible.builtin.command: "/usr/local/sbin/geo-blocklist-update.sh"
+  register: geoblock_initial_run
+  changed_when: "'updated' in geoblock_initial_run.stdout"
+
+- name: Ajouter la rich rule firewalld qui drop le trafic de l'ipset geoblock
+  ansible.posix.firewalld:
+    rich_rule: 'rule source ipset="geoblock" drop'
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Déployer le service systemd de mise à jour
+  ansible.builtin.template:
+    src: geo-blocklist-update.service.j2
+    dest: /etc/systemd/system/geo-blocklist-update.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recharger systemd
+
+- name: Déployer le timer systemd de mise à jour
+  ansible.builtin.template:
+    src: geo-blocklist-update.timer.j2
+    dest: /etc/systemd/system/geo-blocklist-update.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recharger systemd
+
+- name: Appliquer immédiatement le reload systemd si besoin
+  ansible.builtin.meta: flush_handlers
+
+- name: Activer et démarrer le timer de mise à jour périodique
+  ansible.builtin.systemd:
+    name: geo-blocklist-update.timer
+    enabled: true
+    state: started

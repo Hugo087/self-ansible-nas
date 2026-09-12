@@ -50,7 +50,6 @@
     owner: root
     group: root
     mode: "0700"
-    recurse: true
 
 - name: Créer le dossier des quadlets système
   ansible.builtin.file:
@@ -79,7 +78,7 @@
   # chaque run ansible qui ne modifie rien.
   ansible.builtin.systemd:
     name: wg-easy.service
-    state: "{{ 'restarted' if (wireguard_quadlet_deployed.changed or wireguard_env_deployed.changed) else 'started' }}"
+    state: "{{ 'restarted' if wireguard_quadlet_deployed.changed else 'started' }}"
     enabled: true
 
 # Uniquement le tunnel WireGuard lui-même. PAS de règle pour

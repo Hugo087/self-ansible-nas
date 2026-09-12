@@ -3,11 +3,18 @@
 # (le module filesystem est idempotent : il vérifie le fstype existant
 # et ne reformate pas un disque déjà en ext4, donc pas de risque à
 # rejouer ce rôle sur un disque qui contient déjà des données).
+- name: Vérifier si le SSD est monté
+  ansible.builtin.command: "findmnt --noheadings {{ ssd_device }}"
+  register: storage_ssd_mount_check
+  changed_when: false
+  failed_when: false
+
 - name: Formater le SSD en {{ ssd_fstype }}
   community.general.filesystem:
     fstype: "{{ ssd_fstype }}"
     dev: "{{ ssd_device }}"
     force: true
+  when: storage_ssd_mount_check.rc != 0
 
 - name: Créer le point de montage
   ansible.builtin.file:

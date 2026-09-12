@@ -7,6 +7,8 @@
   roles:
     - role: ssh_hardening
       tags: [ssh, hardening]
+    - role: geoblock
+      tags: [ssh, geoblock]
     - role: kernel_longterm
       tags: [kernel]
     - role: zfs

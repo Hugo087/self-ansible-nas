@@ -140,11 +140,11 @@ public_domain: "chillandplay.internal"
 
 # --- VoidAuth (SSO) ---
 voidauth_app_url: "https://sso.{{ public_domain }}"
-voidauth_redirect_url: "https://jellyfin.{{ public_domain }}"
+voidauth_redirect_url: "https://framerr.{{ public_domain }}"
 db_password: "{{ vault_db_password }}"
 voidauth_storage_key: "{{ vault_voidauth_storage_key }}"
 voidauth_smtp_api_key: "{{ vault_voidauth_smtp_api_key }}"
-voidauth_from_mail: "noreply@mail.chillandplay.space"
+voidauth_from_mail: "noreply@chillandplay.space"
 
 # --- Immich (photos) ---
 # Stockage sur le pool ZFS (bulk data), comme les médiathèques Jellyfin -
@@ -237,9 +237,20 @@ moonlight_copr: "ferdiu/moonlight"
 rclone_syncs:
   - name: photos
     local_path: "{{ immich_upload_dir }}"
-    command: "copy {{ immich_upload_dir }} proton:Photos"
+    command: "copy /data proton:Photos"
     schedule: "*-*-* 03:00:00"
   - name: documents
     local_path: "{{ hdd_mountpoint }}/documents"
-    command: "copy proton:Documents {{ hdd_mountpoint }}/documents"
+    command: "copy proton:Documents /data"
     schedule: "*-*-* 02:00:00"
+
+geoblock_countries:
+  - cn   # Chine
+  - ru   # Russie
+  - kp   # Corée du Nord
+  - ir   # Iran
+  - vn   # Vietnam
+  - ro   # Roumanie (beaucoup d'hébergeurs utilisés pour du scan)
+  - ng   # Nigeria (fraude)
+  - br  # Brésil : décommente si tu observes du trafic malveillant depuis ce pays
+  - in  # Inde : beaucoup de scan automatisé, mais aussi beaucoup d'utilisateurs légitimes
