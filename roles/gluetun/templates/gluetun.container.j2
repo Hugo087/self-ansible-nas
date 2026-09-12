@@ -1,0 +1,42 @@
+[Unit]
+Description=Gluetun (tunnel VPN dédié à qBittorrent)
+After=network-online.target
+
+[Container]
+ContainerName=gluetun
+# ghcr.io est le registre officiel recommandé par le projet (qmcgaw/gluetun
+# sur Docker Hub reste un miroir équivalent).
+Image=ghcr.io/qdm12/gluetun:latest
+AutoUpdate=registry
+
+Network=media.network
+
+# NET_ADMIN reste cantonné au netns du conteneur en rootless : gluetun s'en
+# sert pour ses propres règles iptables/routes, pas pour toucher l'hôte.
+AddCapability=NET_ADMIN
+AddDevice=/dev/net/tun:/dev/net/tun
+
+EnvironmentFile={{ ssd_mountpoint }}/appdata/gluetun/gluetun.env
+
+Volume={{ ssd_mountpoint }}/appdata/gluetun/data:/gluetun:Z
+
+# WebUI qBittorrent et port P2P : appartiennent maintenant à CE conteneur,
+# plus à qbittorrent.container (voir Network=gluetun.container côté qBittorrent).
+PublishPort=127.0.0.1:8080:8080
+PublishPort=6881:6881
+PublishPort=6881:6881/udp
+
+HealthCmd=wget --no-verbose --tries=1 -O /dev/null http://127.0.0.1:9999 || exit 1
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthStartPeriod=90s
+Notify=healthy
+HealthOnFailure=kill
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

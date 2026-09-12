@@ -1,0 +1,32 @@
+---
+- name: "Autoriser les containers rootless à utiliser /dev/net/tun (requis par gluetun)"
+  # Sans ce booléen SELinux, le device TUN reste inaccessible en rootless
+  # même avec AddDevice= dans le quadlet (cf. gluetun-wiki/errors/tun.md).
+  ansible.posix.seboolean:
+    name: container_use_devices
+    state: true
+    persistent: true
+
+- name: "Charger le module noyau tun et le persister au boot"
+  # Un conteneur rootless ne peut pas charger de module lui-même : sans ça,
+  # gluetun échoue au premier démarrage après un reboot tant que rien
+  # d'autre sur la machine n'a déclenché le chargement de tun.
+  community.general.modprobe:
+    name: tun
+    state: present
+    persistent: present
+
+- name: "Déployer Gluetun (appdata, quadlet, service)"
+  ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
+  vars:
+    quadlet_user: "{{ media_user }}"
+    quadlet_name: "gluetun"
+    quadlet_appdata_dirs:
+      - data
+    quadlet_env_files:
+      - src: gluetun.env.j2
+        dest: "{{ ssd_mountpoint }}/appdata/gluetun/gluetun.env"
+    quadlet_units:
+      - src: gluetun.container.j2
+        name: gluetun.container
+        service: gluetun.service

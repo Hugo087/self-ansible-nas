@@ -1,20 +1,22 @@
 [Unit]
 Description=qBittorrent
 After=network-online.target
+# Quadlet ajoute déjà automatiquement Requires=/After=gluetun.service grâce
+# au Network= ci-dessous. PartOf= en plus est nécessaire pour que qBittorrent
+# soit arrêté/redémarré à chaque fois que gluetun.service redémarre (mise à
+# jour d'image, restart manuel...) : sans ça, un restart de gluetun casse
+# silencieusement le netns partagé et qBittorrent reste sans réseau jusqu'à
+# un restart manuel.
+PartOf=gluetun.service
 
 [Container]
 ContainerName=qbittorrent
 Image=lscr.io/linuxserver/qbittorrent:latest
 AutoUpdate=registry
 
-Network=media.network
-# WebUI qBittorrent : port 8080 par défaut (pas 9696, qui est celui de Prowlarr).
-# WEBUI_PORT doit être défini explicitement en plus du mapping de port, sinon
-# l'image linuxserver reste sur son port interne par défaut (8080) et le
-# mapping externe ci-dessous ne matche plus (CSRF/host-header check).
-PublishPort=127.0.0.1:8080:8080
-PublishPort=6881:6881
-PublishPort=6881:6881/udp
+# Tout le trafic de qBittorrent (WebUI + P2P) passe par le netns de gluetun :
+# plus aucun PublishPort ici, ils sont déclarés côté gluetun.container.
+Network=gluetun.container
 
 Environment=TZ=Europe/Paris
 Environment=WEBUI_PORT=8080
@@ -22,10 +24,6 @@ Environment=WEBUI_PORT=8080
 Volume={{ ssd_mountpoint }}/appdata/qbittorrent/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z
 
-# Pas d'endpoint /ping dédié comme sonarr/radarr/prowlarr côté qBittorrent :
-# on se contente de vérifier que la page de login WebUI répond (200, sans
-# authentification), ce qui suffit à détecter un process planté/une image
-# cassée. wget : voir le commentaire dans sonarr.container.j2.
 HealthCmd=wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 HealthInterval=30s
 HealthTimeout=5s

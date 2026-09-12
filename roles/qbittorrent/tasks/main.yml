@@ -8,13 +8,3 @@
       - src: qbittorrent.container.j2
         name: qbittorrent.container
         service: qbittorrent.service
-
-- name: Ouvrir le port qBittorrent dans firewalld
-  ansible.posix.firewalld:
-    port: "{{ item }}"
-    permanent: true
-    immediate: true
-    state: enabled
-  loop:
-    - 6881/tcp
-    - 6881/udp

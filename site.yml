@@ -41,6 +41,8 @@
       tags: [seerr, media]
     - role: maintainerr
       tags: [maintainerr, media]
+    - role: gluetun
+      tags: [gluetun, media]
     - role: qbittorrent
       tags: [qbittorrent, media]
     - role: framerr

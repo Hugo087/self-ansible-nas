@@ -254,3 +254,12 @@ geoblock_countries:
   - ng   # Nigeria (fraude)
   - br  # Brésil : décommente si tu observes du trafic malveillant depuis ce pays
   - in  # Inde : beaucoup de scan automatisé, mais aussi beaucoup d'utilisateurs légitimes
+
+# --- Gluetun (VPN dédié à qBittorrent, voir roles/gluetun) ---
+gluetun_vpn_service_provider: protonvpn
+gluetun_vpn_type: wireguard
+# Un ou plusieurs pays ProtonVPN, voir
+# https://github.com/qdm12/gluetun-wiki/blob/main/setup/servers.md
+gluetun_server_countries: "Netherlands"
+
+gluetun_wireguard_private_key: "{{ vault_gluetun_wireguard_private_key }}"
