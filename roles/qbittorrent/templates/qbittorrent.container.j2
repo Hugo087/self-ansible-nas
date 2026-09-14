@@ -20,6 +20,9 @@ Network=gluetun.container
 
 Environment=TZ=Europe/Paris
 Environment=WEBUI_PORT=8080
+Environment=PUID={{ quadlet_uid }}
+Environment=PGID={{ quadlet_gid }}
+UserNS=keep-id:uid={{ quadlet_uid }},gid={{ quadlet_gid }}
 
 Volume={{ ssd_mountpoint }}/appdata/qbittorrent/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/downloads:/downloads:z

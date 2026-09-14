@@ -3,3 +3,13 @@
   ansible.builtin.systemd:
     name: fail2ban
     state: restarted
+
+- name: Restorcon fail2ban
+  ansible.builtin.command:
+    cmd: "restorecon -v {{ item }}"
+  loop:
+    - "/mnt/SSD"
+    - "/mnt/SSD/appdata"
+    - "/mnt/SSD/appdata/caddy"
+  register: fail2ban_restorecon
+  changed_when: "'Relabeled' in fail2ban_restorecon.stdout"

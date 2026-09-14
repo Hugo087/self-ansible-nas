@@ -18,7 +18,7 @@ zfs_release_rpm: "https://zfsonlinux.org/fedora/zfs-release-3-1.fc{{ ansible_fac
 zfs_pool_name: "monpool"
 
 # SSD applicatif (configs Podman, appdata des containers)
-ssd_device: "/dev/disk/by-id/virtio-ata-CT120BX500SSD1_1"  # ata-CT120BX500SSD1_1832E1519645
+ssd_device: "/dev/disk/by-id/ata-CT120BX500SSD1_1832E1519645"
 ssd_fstype: btrfs
 ssd_mountpoint: "/mnt/SSD"
 hdd_mountpoint: "/mnt/HDD"
@@ -86,7 +86,7 @@ beszel_hub_port: 8090
 # son interface web). Vide tant que le bootstrap manuel décrit dans le
 # README n'a pas été fait : les agents resteront déconnectés jusque-là,
 # ce qui est normal pour un premier déploiement.
-beszel_hub_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIINasnTfqw3ZhW+VstUqGlbVt7nO388o5CbgQQU9Z7Wc"
+beszel_hub_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ7RNmLLd4K93l1Aj+zfJx1rzr31WVNQdLO3gLTLIZKf"
 
 # Un port distinct par agent : ils tournent tous en Network=host (comme
 # Caddy, pour atteindre 127.0.0.1:{{ beszel_hub_port }} publié sous un
@@ -119,7 +119,7 @@ wg_easy_ui_port: 51821
 # les clients WireGuard doivent contacter depuis internet. Pense à rediriger
 # {{ wg_easy_port }}/udp (uniquement ce port, jamais {{ wg_easy_ui_port }})
 # vers ce NAS sur ton routeur - pas automatisable depuis ce playbook.
-wg_easy_host: "vpn.chillandplay.internal"
+wg_easy_host: "vpn.hiwasa.fr"
 # Résolveur poussé aux clients une fois connectés au tunnel. Idéalement un
 # DNS qui résout aussi {{ public_domain }} (Pi-hole/AdGuard local, si tu en
 # as un) pour que sonarr.{{ public_domain }} etc. fonctionnent depuis le
@@ -136,7 +136,7 @@ wg_easy_dns: "1.1.1.1"
 # délégué publiquement. Change juste ce nom si tu préfères un autre
 # domaine, le reste du projet ne fait jamais référence à ".lan" ou
 # ".internal" en dur, tout passe par cette variable.
-public_domain: "chillandplay.internal"
+public_domain: "hiwasa.fr"
 
 # --- VoidAuth (SSO) ---
 voidauth_app_url: "https://sso.{{ public_domain }}"
@@ -144,7 +144,7 @@ voidauth_redirect_url: "https://framerr.{{ public_domain }}"
 db_password: "{{ vault_db_password }}"
 voidauth_storage_key: "{{ vault_voidauth_storage_key }}"
 voidauth_smtp_api_key: "{{ vault_voidauth_smtp_api_key }}"
-voidauth_from_mail: "noreply@chillandplay.space"
+voidauth_from_mail: "noreply@hiwasa.fr"
 
 # --- Immich (photos) ---
 # Stockage sur le pool ZFS (bulk data), comme les médiathèques Jellyfin -
@@ -168,10 +168,10 @@ immich_db_password: "{{ vault_immich_db_password }}"
 # ports 80/tcp et 443/tcp de ce NAS sur ton routeur (déjà ouverts côté
 # firewalld par le rôle caddy, qui sert aussi ce vhost - voir
 # roles/caddy/templates/Caddyfile.j2 et le README, section PDS).
-pds_hostname: "pds.chillandplay.internal"
+pds_hostname: "pds.hiwasa.fr"
 # Adresse de contact transmise à Let's Encrypt pour ce domaine (expiration,
 # changements de CGU...) - pas un secret, aucun besoin du vault.
-pds_admin_email: "hugo097@hotmail.fr"
+pds_admin_email: "hugo097@pm.me"
 # Suffixe utilisé pour les handles type <compte>.{{ pds_hostname }} (le
 # point de tête compte, voir PDS_SERVICE_HANDLE_DOMAINS dans
 # roles/pds/templates/pds.env.j2). Ça ne fonctionne que si tu ajoutes AUSSI

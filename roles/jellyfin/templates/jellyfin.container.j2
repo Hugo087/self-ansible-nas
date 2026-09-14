@@ -21,6 +21,7 @@ AddDevice=/dev/dri/:/dev/dri/
 Volume={{ ssd_mountpoint }}/appdata/jellyfin/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/tvshows:/data/tvshows:z,ro
 Volume={{ hdd_mountpoint }}/media/movies:/data/movies:z,ro
+Volume={{ ssd_mountpoint }}/appdata/jellyfin/web-config.json:/jellyfin/jellyfin-web/config.json:Z
 
 # /health : endpoint dédié aux healthchecks, non authentifié, embarqué par
 # Jellyfin lui-même. 

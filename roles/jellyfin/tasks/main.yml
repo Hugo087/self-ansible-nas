@@ -1,4 +1,12 @@
 ---
+- name: Créer le fichier appdata de web-config.json
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/jellyfin/web-config.json"
+    state: file
+    owner: "{{ media_user }}"
+    group: "{{ media_user }}"
+    mode: "0750"
+
 - name: Déployer Jellyfin (appdata, quadlet, service)
   ansible.builtin.include_tasks: ../../quadlet_common/tasks/deploy.yml
   vars:

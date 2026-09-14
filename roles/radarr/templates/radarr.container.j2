@@ -11,6 +11,9 @@ Network=media.network
 PublishPort=127.0.0.1:7878:7878
 
 Environment=TZ=Europe/Paris
+Environment=PUID={{ quadlet_uid }}
+Environment=PGID={{ quadlet_gid }}
+UserNS=keep-id:uid={{ quadlet_uid }},gid={{ quadlet_gid }}
 
 Volume={{ ssd_mountpoint }}/appdata/radarr/config:/config:Z
 Volume={{ hdd_mountpoint }}/media/movies:/movies:z

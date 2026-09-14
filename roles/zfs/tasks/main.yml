@@ -39,7 +39,7 @@
 
 - name: Importer le pool existant
   ansible.builtin.command:
-    cmd: "zpool import {{ zfs_pool_name }}"
+    cmd: "zpool import -f {{ zfs_pool_name }}"
   when: zfs_zpool_check.rc != 0
   register: zfs_zpool_import
   changed_when: zfs_zpool_import.rc == 0

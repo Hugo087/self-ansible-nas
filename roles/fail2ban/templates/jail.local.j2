@@ -35,14 +35,10 @@ findtime = 5m
 bantime = 1h
 
 [recidive]
-# Jail standard livrée avec fail2ban (filter.d/recidive.conf déjà présent
-# de base, pas de filtre custom nécessaire) : surveille son propre log
-# (/var/log/fail2ban.log) et bannit une IP nettement plus longtemps si
-# elle a déjà été bannie plusieurs fois, tous jails confondus (caddy-auth,
-# caddy-scan, sshd...), sur une fenêtre d'une journée.
 enabled = true
 filter = recidive
-logpath = /var/log/fail2ban.log
+backend = systemd
+journalmatch = _SYSTEMD_UNIT=fail2ban.service
 bantime = 1w
 findtime = 1d
 maxretry = 3

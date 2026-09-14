@@ -40,6 +40,20 @@
     database: passwd
     key: "{{ quadlet_user }}"
 
+- name: "Créer le dossier appdata de {{ quadlet_name }}"
+  # mode 0750 (pas 0755) : ces dossiers contiennent les fichiers de config
+  # des apps, qui eux-mêmes ne sont pas toujours protégés individuellement
+  # (ex. config.xml des *arr contient l'API key en clair, sans mode 0600
+  # dédié côté image). Aucun autre service du projet n'a besoin de lire
+  # ces dossiers (Samba ne partage jamais appdata/), donc rien ne justifie
+  # qu'ils soient lisibles par n'importe quel compte local de la machine.
+  ansible.builtin.file:
+    path: "{{ ssd_mountpoint }}/appdata/{{ quadlet_name }}"
+    state: directory
+    owner: "{{ quadlet_user }}"
+    group: "{{ quadlet_user }}"
+    mode: "0750"
+
 - name: "Créer les dossiers appdata de {{ quadlet_name }}"
   # mode 0750 (pas 0755) : ces dossiers contiennent les fichiers de config
   # des apps, qui eux-mêmes ne sont pas toujours protégés individuellement

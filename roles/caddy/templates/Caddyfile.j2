@@ -102,14 +102,13 @@
     header Content-Security-Policy "frame-ancestors 'none'"
 }
 
-www.{{ public_domain }} {
-    redir https://framerr.{{ public_domain }}{uri} permanent
-}
-
 {{ public_domain }} {
     redir https://framerr.{{ public_domain }}{uri} permanent
 }
 
+www.{{ public_domain }} {
+    redir https://framerr.{{ public_domain }}{uri} permanent
+}
 
 # --- VoidAuth (SSO) ---
 # Doit rester accessible partout où jellyfin/seerr le sont : c'est vers ce
@@ -118,7 +117,6 @@ www.{{ public_domain }} {
 # une page de login qu'il ne peut pas atteindre.
 
 sso.{{ public_domain }} {
-    tls internal
     log {
         output file /var/log/caddy/sso-access.log
         format json {
@@ -147,20 +145,19 @@ sso.{{ public_domain }} {
 # comme pour Immich plus haut. L'authentification est gérée en interne par
 # le PDS lui-même (JWT), c'est le rôle de PDS_ADMIN_PASSWORD /
 # PDS_JWT_SECRET (roles/pds/templates/pds.env.j2), pas de VoidAuth.
-# {{ pds_hostname }} {
-#     tls {{ pds_admin_email }}
-#     import access_log
-#     import security_headers
-#     # Port hôte 3002 (pas 3000, utilisé par sso.{{ public_domain }}
-#     # ci-dessus) : voir roles/pds/templates/pds.container.j2 pour le
-#     # détail de la collision évitée.
-#     reverse_proxy 127.0.0.1:3002
-# }
+{{ pds_hostname }} {
+    tls {{ pds_admin_email }}
+    import access_log
+    import security_headers
+    # Port hôte 3002 (pas 3000, utilisé par sso.{{ public_domain }}
+    # ci-dessus) : voir roles/pds/templates/pds.container.j2 pour le
+    # détail de la collision évitée.
+    reverse_proxy 127.0.0.1:3002
+}
 
 # --- Apps grand public, derrière VoidAuth ---
 
 jellyfin.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_framerr
@@ -168,7 +165,6 @@ jellyfin.{{ public_domain }} {
 }
 
 seerr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_framerr
@@ -190,7 +186,6 @@ seerr.{{ public_domain }} {
 # l'appli mobile sait suivre. Pas automatisé par ce playbook (nécessite de
 # créer le client OIDC dans VoidAuth à la main).
 photos.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -200,7 +195,6 @@ photos.{{ public_domain }} {
 # --- Outils d'admin : LAN + VoidAuth, les deux couches ---
 
 sonarr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_framerr
@@ -210,7 +204,6 @@ sonarr.{{ public_domain }} {
 }
 
 radarr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_framerr
@@ -220,7 +213,6 @@ radarr.{{ public_domain }} {
 }
 
 prowlarr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -230,7 +222,6 @@ prowlarr.{{ public_domain }} {
 }
 
 maintainerr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -240,7 +231,6 @@ maintainerr.{{ public_domain }} {
 }
 
 qbittorrent.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_framerr
@@ -258,7 +248,6 @@ qbittorrent.{{ public_domain }} {
 # service embarqué (ex. sonarr.{{ public_domain }}), qui reste protégé par
 # ses propres blocs ci-dessus, indépendamment de ce bloc-ci.
 framerr.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -270,7 +259,6 @@ framerr.{{ public_domain }} {
 # au hub en 127.0.0.1:{{ beszel_hub_port }} via Network=host, sans passer
 # par Caddy (voir roles/beszel).
 monitor.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -291,7 +279,6 @@ monitor.{{ public_domain }} {
 # servir en clair - sans risque ici puisque la connexion reste sur
 # loopback, jamais sur le réseau.
 cockpit.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import lan_only
@@ -312,7 +299,6 @@ cockpit.{{ public_domain }} {
 # VPN (10.10.0.0/24 est dans private_ranges, donc dans lan_only) : pas
 # besoin d'être physiquement sur le LAN pour gérer tes pairs en déplacement.
 vpn.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none
@@ -321,7 +307,6 @@ vpn.{{ public_domain }} {
 }
 
 games.{{ public_domain }} {
-    tls internal
     import access_log
     import security_headers
     import frame_ancestors_none

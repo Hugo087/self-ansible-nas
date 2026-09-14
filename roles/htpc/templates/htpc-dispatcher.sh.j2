@@ -21,11 +21,11 @@ next="kodi"
 while true; do
     case "${next}" in
         kodi)
-            gamescope --expose-wayland -- kodi --standalone
+            kodi --standalone
             next="moonlight"
             ;;
         moonlight)
-            gamescope --expose-wayland -- moonlight
+            moonlight
             next="kodi"
             ;;
     esac
