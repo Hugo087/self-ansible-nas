@@ -263,6 +263,7 @@ monitor.{{ public_domain }} {
     import security_headers
     import frame_ancestors_none
     import lan_only
+    import voidauth_auth
     reverse_proxy 127.0.0.1:{{ beszel_hub_port }}
 }
 
@@ -303,6 +304,7 @@ vpn.{{ public_domain }} {
     import security_headers
     import frame_ancestors_none
     import lan_only
+    import voidauth_auth
     reverse_proxy 127.0.0.1:{{ wg_easy_ui_port }}
 }
 
@@ -311,6 +313,7 @@ games.{{ public_domain }} {
     import security_headers
     import frame_ancestors_none
     import lan_only
+    import voidauth_auth
     reverse_proxy 127.0.0.1:9443 {
         transport http {
             tls_insecure_skip_verify

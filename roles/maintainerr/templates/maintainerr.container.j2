@@ -1,5 +1,6 @@
 [Unit]
 Description=Maintainerr
+After=network-online.target
 
 [Container]
 Image=ghcr.io/maintainerr/maintainerr:latest
@@ -10,7 +11,8 @@ Volume={{ ssd_mountpoint }}/appdata/maintainerr/config:/opt/data:Z
 Volume={{ hdd_mountpoint }}/media/movies:/movies:z
 Volume={{ hdd_mountpoint }}/media/tvshows:/tv:z
 Environment=TZ=Europe/Paris
-PublishPort=6246:6246
+PublishPort=127.0.0.1:6246:6246
+Network=media.network
 AutoUpdate=registry
 
 [Service]

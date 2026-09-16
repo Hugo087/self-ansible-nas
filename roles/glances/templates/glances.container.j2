@@ -24,6 +24,8 @@ Environment=TZ=Europe/Paris
 Environment=GLANCES_OPT=-w
 
 Volume={{ ssd_mountpoint }}/appdata/glances/healthcheck.py:/usr/local/bin/healthcheck.py:Z,ro
+Volume={{ hdd_mountpoint }}:/media:ro
+Volume=/home/svc-media:/home/svc-media:ro
 
 # Voir roles/glances/templates/healthcheck.py.j2 pour le détail du choix
 # technique (Python plutôt que shell, test TCP).
